@@ -1,0 +1,37 @@
+<!DOCTYPE html><html><body style="margin:0">
+<pre id="out">running</pre>
+<iframe id="f" style="width:1000px;height:780px;border:0"></iframe>
+<script>
+const out=document.getElementById('out');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{
+  const res={}, errors=[];
+  try{
+    const r=await fetch('/darkchess/api/rooms',{method:'POST'});
+    const code=(await r.json()).code;
+    res.created=code;
+    const f=document.getElementById('f');
+    f.src='/games/dark_chess.html?room='+code;
+    await sleep(2500);
+    const d=f.contentDocument, w=f.contentWindow;
+    res.roomCodeShown=d.getElementById('roomCode').textContent;
+    res.status=d.getElementById('status').textContent;
+    res.onlineTabOn=d.getElementById('tabOnline').classList.contains('on');
+    res.onlineBoxVisible=!d.getElementById('onlineBox').hidden;
+    res.joinRowHidden=d.getElementById('joinRow').hidden;
+    res.pieces=d.querySelectorAll('.pc').length;
+    res.hidden=d.querySelectorAll('.pc.hidden').length;
+    res.colorBottomShown=d.getElementById('colorBottom').textContent;
+    // 只开了一人时，点自己的子应被服务端拒绝（提示"等对手加入后再走"）
+    const ops=[...d.querySelectorAll('.pc.op')];
+    if(ops.length){
+      ops[0].dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+      await sleep(600);
+      res.soloClickStatus=d.getElementById('status').textContent;
+      res.soloMarkers=d.querySelectorAll('.mk,.mkcap,.mkring').length;
+    }
+  }catch(e){ errors.push(String(e)); }
+  out.textContent=JSON.stringify({errors,res});
+  window.__DSTEST={done:true,errors,res};
+})();
+</script></body></html>

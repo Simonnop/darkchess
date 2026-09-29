@@ -1,0 +1,108 @@
+<!DOCTYPE html><html><body style="margin:0;display:flex;gap:4px">
+<pre id="out" style="position:absolute;z-index:9;color:#f00">running</pre>
+<iframe id="a" src="/games/dark_chess.html" style="width:720px;height:760px;border:0"></iframe>
+<iframe id="b" style="width:720px;height:760px;border:0"></iframe>
+<script>
+const errors=[], res={};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const click=(w,el)=>el.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+async function until(fn,ms=8000,step=50){const t0=Date.now();while(Date.now()-t0<ms){try{const v=fn();if(v)return v;}catch(e){}await sleep(step);}return null;}
+const D=id=>document.getElementById(id).contentDocument;
+const W=id=>document.getElementById(id).contentWindow;
+const sig=d=>[...d.querySelectorAll('.pc')].map(e=>{const t=e.querySelector('text');return e.dataset.r+','+e.dataset.c+(e.classList.contains('hidden')?'h':(t?t.textContent:'?'));}).join('|');
+const started=d=>d&&d.getElementById('colorBottom')&&d.getElementById('colorBottom').textContent!=='—';
+const finish=()=>{ window.__DSTEST={done:true,errors,res}; document.getElementById('out').textContent=JSON.stringify({errors,res}); };
+(async()=>{
+ try{
+  // A 建房（等页面脚本初始化完成：本地棋盘已渲染出 32 个棋子）
+  await until(()=>{try{return D('a')&&D('a').querySelectorAll('.pc').length===32;}catch(e){return false;}},10000);
+  click(W('a'),D('a').getElementById('tabOnline'));
+  await sleep(200);
+  click(W('a'),D('a').getElementById('btnCreate'));
+  const code=await until(()=>{const t=D('a').getElementById('roomCode').textContent;return (t&&t.length===6)?t:null;},10000);
+  res.room=code;
+  if(!code){ errors.push('建房失败'); finish(); return; }
+  // B 用邀请链接加入（清掉共享 sessionStorage，模拟另一台设备/浏览器）
+  // 等 A 的 hello 落地（sessionStorage 写入房间+令牌）后再清掉，模拟另一台设备
+  await until(()=>{try{const s=sessionStorage.getItem('dc_room');return s&&s.indexOf(code)>=0;}catch(e){return false;}},8000);
+  res.storageBefore=sessionStorage.getItem('dc_room');
+  try{ sessionStorage.removeItem('dc_room'); }catch(e){}
+  document.getElementById('b').src='/games/dark_chess.html?room='+code;
+  const TL=[];
+  const snap=id=>{try{const d=D(id);return {room:g=>d.getElementById('roomCode').textContent,
+     st:(d.getElementById('status').textContent||'').slice(0,26), cb:d.getElementById('colorBottom').textContent,
+     pc:d.querySelectorAll('.pc').length, op:d.querySelectorAll('.pc.op').length};}catch(e){return {err:1};}};
+  for(let i=0;i<12;i++){ await sleep(400); TL.push({i, A:snap('a'), B:snap('b'), store:(()=>{try{return sessionStorage.getItem('dc_room');}catch(e){return 'x';}})()}); }
+  await until(()=>D('b')&&D('b').getElementById('svg'),8000);
+  await until(()=>D('b').getElementById('roomCode').textContent===code,8000);
+  const bothStarted=await until(()=>started(D('a'))&&started(D('b')),10000);
+  if(!bothStarted){ errors.push('双方未进入已开局状态'); finish(); return; }
+  res.aColorBottom=D('a').getElementById('colorBottom').textContent;
+  res.bColorTop=D('b').getElementById('colorTop').textContent;
+  res.seatsOk = res.aColorBottom!==res.bColorTop;
+  res.aStatus=(D('a').getElementById('status').textContent||'');
+  res.bStatus=(D('b').getElementById('status').textContent||'');
+  res.bIsJoiner=/你执/.test(res.bStatus);
+  // 轮流动
+  let movesA=0, movesB=0;
+  for(let i=0;i<8;i++){
+    const dA=D('a');
+    if(!dA.getElementById('overlay').hidden) break;
+    // 用「哪一边出现了可动光晕」判定轮到谁（等两边状态收敛）
+    let side=null, ops=null;
+    for(let k=0;k<40;k++){
+      const oa=[...D('a').querySelectorAll('.pc.op')], ob=[...D('b').querySelectorAll('.pc.op')];
+      if(oa.length&&!ob.length){ side='a'; ops=oa; break; }
+      if(ob.length&&!oa.length){ side='b'; ops=ob; break; }
+      await sleep(100);
+    }
+    if(!side){ errors.push('两边状态未收敛（都有/都没有可动光晕）'); break; }
+    const d=side==='b'?D('b'):D('a'), w=side==='b'?W('b'):W('a');
+    const before=sig(d);
+    let mk=null;                       // 逐个尝试：有些子当前确实没有合法落点
+    for(const opEl of ops){
+      click(w,opEl);
+      mk=await until(()=>{const m=[...d.querySelectorAll('.mk,.mkcap,.mkring')];return m.length?m:null;},1200);
+      if(mk) break;
+      click(w,opEl);                   // 取消选中，试下一个
+    }
+    if(!mk){ errors.push(side+' 所有可动子都没落点'); break; }
+    click(w,mk[Math.floor(Math.random()*mk.length)]);
+    const ok=await until(()=>sig(d)!==before,5000);
+    if(!ok){ errors.push(side+' 落子后画面没变'); break; }
+    if(side==='a') movesA++; else movesB++;
+  }
+  res.movesA=movesA; res.movesB=movesB;
+  if(movesA+movesB>=3 && movesB===0) errors.push('加入方（B）一步都没走上');
+  res.overA=!D('a').getElementById('overlay').hidden;
+  res.overB=!D('b').getElementById('overlay').hidden;
+  if(res.overA) res.result=D('a').getElementById('resultText').textContent;
+  // 若上一步已分出胜负，先重开一局再测求和
+  if(!D('a').getElementById('overlay').hidden){
+    click(W('b'),D('b').getElementById('btnAgain'));
+    await until(()=>D('a').getElementById('overlay').hidden&&D('b').getElementById('overlay').hidden,8000);
+  }
+  // 求和：A 求和 → B 应看到提示并可同意
+  click(W('a'),D('a').getElementById('btnDraw'));
+  const prompt=await until(()=>!D('b').getElementById('drawRow').hidden,6000);
+  res.joinerSeesDraw=!!prompt;
+  if(prompt){
+    click(W('b'),D('b').getElementById('btnAcceptDraw'));
+    const done=await until(()=>!D('a').getElementById('overlay').hidden&&!D('b').getElementById('overlay').hidden,8000);
+    res.drawBoth=!!done;
+    res.drawResultA=done?D('a').getElementById('resultText').textContent:null;
+    res.drawResultB=done?D('b').getElementById('resultText').textContent:null;
+  }
+  // 再来一局：由加入方 B 点
+  if(!D('b').getElementById('overlay').hidden){
+    click(W('b'),D('b').getElementById('btnAgain'));
+    const again=await until(()=>D('a').getElementById('overlay').hidden&&D('b').getElementById('overlay').hidden&&D('a').querySelectorAll('.pc').length===32,8000);
+    res.rematchByJoiner=!!again;
+  }
+  res.finalA=(D('a').getElementById('status').textContent||'').slice(0,30);
+  res.finalB=(D('b').getElementById('status').textContent||'').slice(0,30);
+  res.timeline=typeof TL!=='undefined'?TL:[];
+  finish();
+ }catch(e){ errors.push('fatal:'+String(e&&e.stack||e)); finish(); }
+})();
+</script></body></html>

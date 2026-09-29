@@ -1,0 +1,33 @@
+<!DOCTYPE html><html><body style="margin:0">
+<pre id="out" style="position:absolute;z-index:9;font-size:11px">probe</pre>
+<iframe id="a" src="/games/dark_chess.html" style="width:600px;height:700px;border:0"></iframe>
+<iframe id="b" style="width:600px;height:700px;border:0"></iframe>
+<script>
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const click=(w,el)=>el.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+const D=id=>document.getElementById(id).contentDocument, W=id=>document.getElementById(id).contentWindow;
+async function until(fn,ms=8000,step=50){const t0=Date.now();while(Date.now()-t0<ms){try{const v=fn();if(v)return v;}catch(e){}await sleep(step);}return null;}
+const snap=id=>{try{const d=D(id);const g=x=>d.getElementById(x);return {
+  tab:g('tabOnline').classList.contains('on')?'on':'local',
+  box:g('onlineBox').hidden?'hide':'show',
+  room:g('roomCode').textContent,
+  stat:(g('status').textContent||'').slice(0,34),
+  cb:g('colorBottom').textContent, ct:g('colorTop').textContent,
+  turnTop:g('barTop').classList.contains('turn'), turnBot:g('barBottom').classList.contains('turn'),
+  pc:d.querySelectorAll('.pc').length, op:d.querySelectorAll('.pc.op').length, hid:d.querySelectorAll('.pc.hidden').length,
+  over:!g('overlay').hidden};}catch(e){return {err:String(e).slice(0,40)};}};
+(async()=>{
+  const tl=[];
+  await until(()=>{try{return D('a').querySelectorAll('.pc').length===32;}catch(e){return false;}},10000);
+  click(W('a'),D('a').getElementById('tabOnline')); await sleep(150);
+  click(W('a'),D('a').getElementById('btnCreate'));
+  const code=await until(()=>{const t=D('a').getElementById('roomCode').textContent;return t.length===6?t:null;},8000);
+  tl.push({t:'created',code,A:snap('a')});
+  try{ sessionStorage.removeItem('dc_room'); }catch(e){}
+  document.getElementById('b').src='/games/dark_chess.html?room='+code;
+  await until(()=>{try{return D('b').querySelectorAll('.pc').length>0;}catch(e){return false;}},8000);
+  for(let i=0;i<16;i++){ tl.push({t:'+'+((i+1)*400)+'ms',A:snap('a'),B:snap('b')}); await sleep(400); }
+  document.getElementById('out').textContent=JSON.stringify(tl);
+  window.__DSTEST={done:true,tl};
+})();
+</script></body></html>

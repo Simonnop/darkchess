@@ -1,0 +1,54 @@
+<!DOCTYPE html><html><body style="margin:0">
+<pre id="out" style="position:absolute;z-index:9;font-size:11px">running</pre>
+<iframe id="f" src="/games/dark_chess.html" style="width:800px;height:760px;border:0"></iframe>
+<script>
+const P=document; const F=P.getElementById('f');
+const $=id=>F.contentDocument.getElementById(id);
+let document, MouseEvent, performance, DOMMatrixReadOnly, getComputedStyle;
+async function boot(){
+  for(let i=0;i<120;i++){ try{ if(F.contentDocument&&F.contentDocument.querySelectorAll('.pc').length===32) break; }catch(e){} await new Promise(r=>setTimeout(r,60)); }
+  const w=F.contentWindow;
+  document=F.contentDocument; MouseEvent=w.MouseEvent; performance=w.performance; DOMMatrixReadOnly=w.DOMMatrixReadOnly; getComputedStyle=w.getComputedStyle;
+  run();
+}
+window.__DSTEST=null;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function run(){
+  const res={};
+  let captured=false;
+  for(let attempt=0; attempt<60 && !captured; attempt++){
+    const ops=[...document.querySelectorAll('.pc.op')];
+    if(!ops.length) break;
+    const op=ops[Math.floor(Math.random()*ops.length)];
+    op.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    await sleep(150);
+    const caps=[...document.querySelectorAll('.mkcap,.mkring')];
+    if(caps.length){
+      caps[Math.floor(Math.random()*caps.length)].dispatchEvent(new MouseEvent('click',{bubbles:true}));
+      captured=true; break;
+    }
+    const mk=[...document.querySelectorAll('.mk')];
+    if(mk.length){ mk[Math.floor(Math.random()*mk.length)].dispatchEvent(new MouseEvent('click',{bubbles:true})); await sleep(350); }
+  }
+  if(!captured){ res.error='未找到吃子机会'; P.getElementById('out').textContent=JSON.stringify(res); window.__DSTEST={done:true,res}; return; }
+  let t0=null,t1=null; const samples=[]; const start=performance.now();
+  for(let i=0;i<160;i++){
+    const f=document.querySelector('.flyer');
+    if(f){
+      const now=performance.now(); if(t0===null) t0=now; t1=now;
+      const inner=f.querySelector('.inner');
+      let sc=null; try{ sc=+new DOMMatrixReadOnly(getComputedStyle(inner).transform).a.toFixed(3); }catch(e){}
+      samples.push({ms:Math.round(now-start), scale:sc});
+    }
+    if(t0!==null && !f) break;
+    await sleep(40);
+  }
+  res.appeared=!!t0;
+  res.durationMs=t0?Math.round(t1-t0):null;
+  res.samples=samples.filter((s,i)=>i%4===0).slice(0,30);
+  res.trayVisible=[...document.querySelectorAll('.mg .mini')].length;
+  P.getElementById('out').textContent=JSON.stringify(res);
+  window.__DSTEST={done:true,res};
+}
+boot();
+</script></body></html>

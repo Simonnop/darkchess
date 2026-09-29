@@ -1,0 +1,119 @@
+<!DOCTYPE html><html><body style="margin:0">
+<pre id="out">running</pre>
+<iframe id="f" src="/games/dark_chess.html" style="width:1000px;height:780px;border:0"></iframe>
+<script>
+const out=document.getElementById('out'), f=document.getElementById('f');
+const errors=[], res={};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function until(fn,ms=8000,step=50){const t0=Date.now();while(Date.now()-t0<ms){try{const v=fn();if(v)return v;}catch(e){}await sleep(step);}return null;}
+const click=(w,el)=>el.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+const sig=d=>[...d.querySelectorAll('.pc')].map(e=>{const t=e.querySelector('text');return e.dataset.r+','+e.dataset.c+(e.classList.contains('hidden')?'h':(t?t.textContent:'?'));}).join('|');
+const finish=()=>{ window.__DSTEST={done:true,errors,res}; out.textContent=JSON.stringify({errors,res}); };
+
+async function start(){
+ const w=f.contentWindow, d=f.contentDocument;
+ try{
+  w.onerror=(m,s,l)=>{errors.push('iframe:'+m+'@'+l);return false;};
+  await sleep(400);
+  res.offlinePieces=d.querySelectorAll('.pc').length;
+  res.tabs=!!(d.getElementById('tabLocal')&&d.getElementById('tabOnline'));
+  const b0=sig(d);
+  const ops0=[...d.querySelectorAll('.pc.op')];
+  if(!ops0.length) errors.push('单机：无可操作棋子');
+  else{
+    click(w,ops0[0]);
+    const mk=await until(()=>{const m=[...d.querySelectorAll('.mk,.mkcap,.mkring')];return m.length?m:null;},3000);
+    res.offlineMarkers=mk?mk.length:0;
+    if(mk) click(w,mk[0]);
+    await until(()=>sig(d)!==b0,4000);
+    res.offlineMoved=sig(d)!==b0;
+  }
+  click(w,d.getElementById('tabOnline'));
+  await until(()=>!d.getElementById('onlineBox').hidden,2000);
+  click(w,d.getElementById('btnCreate'));
+  const code=await until(()=>{const t=d.getElementById('roomCode').textContent;return (t&&t.length===6)?t:null;},10000);
+  res.room=code||null;
+  await until(()=>d.querySelectorAll('.pc.hidden').length===32,8000);   // 等到占位棋盘（全暗）
+  res.waitingShown=/等待对手/.test(d.getElementById('status').textContent||'');
+  res.waitingAllHidden=d.querySelectorAll('.pc.hidden').length;      // 未开局：32 个全暗
+  res.waitingColor=d.getElementById('colorBottom').textContent;      // 未定色：—
+  res.waitingStatus=(d.getElementById('status').textContent||'').slice(0,60);
+  if(!code){ finish(); return; }
+  const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/darkchess/ws?room='+code);
+  const msgs=[]; ws.addEventListener('message',e=>msgs.push(JSON.parse(e.data)));
+  await new Promise(r=>ws.addEventListener('open',r));
+  const wait=async(pred,ms=10000)=>{const t0=Date.now();while(Date.now()-t0<ms){const i=msgs.findIndex(pred);if(i>=0)return msgs.splice(i,1)[0];await sleep(25);}return null;};
+  const hello=await wait(m=>m.t==='hello'); res.driverSeat=hello?hello.seat:null;
+  let st=await wait(m=>m.t==='state'&&m.started!==false,10000);
+  msgs.length=0;                                   // 丢掉开局前的等待态
+  res.oppJoined=!!st;
+  await until(()=>!/等待对手/.test(d.getElementById('status').textContent||''),6000);
+  res.iframeSeesOpp=!/等待对手/.test(d.getElementById('status').textContent||'');
+  let moves=0;
+  const cands=(s,seat)=>{const o=[];for(let r=0;r<10;r++)for(let c=0;c<9;c++){const p=s.board[r][c];if(!p)continue;if(p.h){if(seat==='bottom'?r>=5:r<5)o.push([r,c]);}else if(p.color===(seat==='bottom'?s.bottomColor:s.topColor))o.push([r,c]);}return o;};
+  const latestState=()=>{ while(msgs.length){ const m=msgs.shift(); if(m.t==='state') st=m; } return st; };
+  while(st&&!st.over&&moves<4){
+    latestState();
+    if(d.getElementById('overlay')&&!d.getElementById('overlay').hidden) break;
+    // 等 iframe 自己的 state 追上（否则它的回合高亮/光晕是旧的）
+    await until(()=>{
+      const s2=st; if(!s2) return true;
+      const domTurn=d.getElementById('barBottom').classList.contains('turn')?'bottom':'top';
+      const want=(s2.turn===s2.bottomColor)?'bottom':'top';
+      return domTurn===want;
+    },4000);
+    const turnSeat=d.getElementById('barBottom').classList.contains('turn')?'bottom':'top';
+    if(turnSeat==='bottom'){
+      const before=sig(d);
+      const ops=[...d.querySelectorAll('.pc.op')];
+      if(!ops.length){errors.push('联机：iframe 无可动棋子');break;}
+      let picked=null;
+      for(const opEl of ops){                       // 逐个尝试：有些子当前无合法落点
+        click(w,opEl);
+        const mk0=await until(()=>{const m=[...d.querySelectorAll('.mk,.mkcap,.mkring')];return m.length?m:null;},1200);
+        if(mk0){ picked=mk0; break; }
+        click(w,opEl);                              // 取消选中，试下一个
+      }
+      if(!picked){errors.push('联机：iframe 所有可动子都没落点');break;}
+      click(w,picked[Math.floor(Math.random()*picked.length)]);
+      const ns=await wait(m=>m.t==='state',10000);
+      if(!ns){errors.push('联机：driver 未收到 state');break;}
+      st=ns;
+      if(sig(d)===before) errors.push('联机：iframe 走子后画面未变');
+    }else{
+      let played=false;
+      for(const [r,c] of cands(st,'top')){
+        msgs.length=0; ws.send(JSON.stringify({t:'sel',r,c}));
+        const rep=await wait(m=>(m.t==='moves'&&m.r===r&&m.c===c)||m.t==='err',3000);
+        if(rep&&rep.t==='moves'&&rep.moves.length){
+          const [tr,tc]=rep.moves[0];
+          ws.send(JSON.stringify({t:'move',fr:r,fc:c,tr,tc}));
+          st=await wait(m=>m.t==='state',10000);
+          played=!!st; break;
+        }
+      }
+      if(!played){errors.push('联机：driver 找不到可走子');break;}
+    }
+    moves++;
+  }
+  res.onlineMoves=moves;
+  res.iframeHiddenNow=d.querySelectorAll('.pc.hidden').length;
+  res.iframeColorBottom=d.getElementById('colorBottom').textContent;
+  msgs.length=0; ws.send(JSON.stringify({t:'draw'}));
+  const prompt=await until(()=>!d.getElementById('drawRow').hidden,6000);
+  res.drawPrompt=!!prompt;
+  if(prompt){
+    click(w,d.getElementById('btnAcceptDraw'));
+    const over=await until(()=>!d.getElementById('overlay').hidden,8000);
+    res.drawResult=over?d.getElementById('resultText').textContent:null;
+  }
+  if(!d.getElementById('overlay').hidden){
+    click(w,d.getElementById('btnAgain'));
+    const again=await until(()=>d.getElementById('overlay').hidden&&d.querySelectorAll('.pc').length===32,8000);
+    res.rematch=!!again;
+  }
+  finish();
+ }catch(e){ errors.push('fatal:'+String(e&&e.stack||e)); finish(); }
+}
+(async function boot(){ for(let i=0;i<120;i++){ try{ if(f.contentDocument&&f.contentDocument.getElementById('svg')) break; }catch(e){} await sleep(100); } start(); })();
+</script></body></html>

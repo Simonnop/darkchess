@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>暗棋 · Dark Chess</title>
+<meta name="description" content="中国象棋变体：32 子打乱盖放，首手按位置走法，翻开归属，吃将取胜。同屏双人对下。">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+:root{
+  --paper:#F0EBDE;--paper2:#E7E0CF;--paper3:#F8F4EA;
+  --ink:#2E343D;--ink2:#5D6673;--ink3:#8B9098;
+  --line:rgba(46,52,61,.16);--line2:rgba(46,52,61,.32);
+  --red:#B04A3C;--red2:#8E3A2F;--green:#5F7D5B;--green2:#7E9C74;--tile:#3E4650;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}          /* 让 hidden 属性不被 .orow 等 display 规则覆盖 */
+html,body{margin:0;padding:0}
+body{
+  background:#E9E6DC;color:var(--ink);
+  font-family:'JetBrains Mono','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;user-select:none;-webkit-tap-highlight-color:transparent;
+}
+/* ── 背景：细像素苏州园林（canvas）＋ 雾气提亮，让纸上墨色可读 ── */
+#bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+#bg canvas{width:100%;height:100%;display:block;object-fit:cover;object-position:center bottom;image-rendering:pixelated;image-rendering:crisp-edges;-ms-interpolation-mode:nearest-neighbor}
+#bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(238,240,235,.22) 0%,rgba(238,240,235,.14) 26%,rgba(238,240,235,.10) 50%,rgba(238,240,235,.18) 74%,rgba(238,240,235,.30) 100%)}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(900px 520px at 50% -10%,rgba(255,255,255,.38),transparent 60%),
+             radial-gradient(700px 420px at 88% 110%,rgba(120,140,120,.10),transparent 60%);
+}
+.wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:26px 16px 48px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+h1{margin:0;font-size:30px;letter-spacing:.14em;color:var(--ink);font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.6)}
+h1 .en{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color:var(--ink2);letter-spacing:.34em;margin-left:12px;font-weight:400;vertical-align:2px}
+.back{font-size:12px;color:var(--ink2);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:7px 14px;background:rgba(240,235,222,.72);transition:.2s}
+.back:hover{color:var(--ink);border-color:var(--line2);background:var(--paper3)}
+.layout{display:flex;gap:22px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.board-col{--bdw:min(100%,calc((100vh - 235px) * 0.9018));flex:1 1 460px;max-width:620px;min-width:290px}
+.side{flex:0 1 330px;min-width:270px;max-width:400px;width:100%;display:flex;flex-direction:column;gap:14px}
+/* ── 纸面板通用 ── */
+.status,.online,.tray-block,.log,details.rules{
+  background-image:repeating-linear-gradient(0deg,rgba(46,52,61,.035) 0 1px,transparent 1px 4px);
+}
+.tag{font-size:12px;color:var(--ink2)}
+.board-frame{
+  width:var(--bdw);
+  margin:0 auto;padding:1px;border-radius:12px;
+  background:linear-gradient(180deg,rgba(46,52,61,.38),rgba(46,52,61,.14) 42%,rgba(46,52,61,.10));
+  box-shadow:0 16px 34px -26px rgba(24,30,38,.9);
+}
+.board{position:relative;background-color:rgba(243,238,226,.95);border-radius:11px;overflow:hidden;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.board svg{display:block;width:100%;height:auto}
+.bl{stroke:rgba(46,52,61,.42);stroke-width:1.6}
+.bl.thick{stroke:rgba(46,52,61,.72);stroke-width:2.6}
+.river{fill:rgba(46,52,61,.32);font-size:26px;font-family:'Kaiti SC','STKaiti','KaiTi','Noto Serif CJK SC',serif;letter-spacing:6px}
+/* ── 棋子：瓷白子 + 朱砂/墨 ── */
+.pc{cursor:pointer}
+.pc .disc{stroke-width:2}
+.pc.red .disc{fill:var(--paper3);stroke:var(--red)}
+.pc.black .disc{fill:var(--paper3);stroke:var(--ink)}
+.pc .glyph{font-family:'Kaiti SC','STKaiti','KaiTi','Noto Serif CJK SC','SimSun',serif;font-size:40px;text-anchor:middle;dominant-baseline:central}
+.pc.red .glyph{fill:var(--red2)}
+.pc.black .glyph{fill:var(--ink)}
+.pc.hidden .disc{fill:var(--tile);stroke:#57616E}
+.pc.hidden .hring{fill:none;stroke:rgba(240,235,222,.34);stroke-width:1.2}
+.pc.hidden .poschar{font-family:'Kaiti SC','STKaiti','KaiTi',serif;font-size:20px;fill:#C6CCD4;text-anchor:middle;dominant-baseline:central}
+.pc.op .opring{fill:none;stroke:rgba(95,125,91,.34);stroke-width:2}
+.pc.red:hover .disc,.pc.black:hover .disc,.pc.hidden:hover .disc{stroke:var(--green2)}
+.pc.sel .disc{stroke:var(--red) !important;stroke-width:4}
+.pc.sel{filter:drop-shadow(0 2px 6px rgba(176,74,60,.35))}
+.mk{fill:rgba(95,125,91,.75);cursor:pointer}
+.mk:hover{fill:var(--green2)}
+.mkcap{fill:rgba(176,74,62,.14);stroke:var(--red);stroke-width:3;cursor:pointer}
+.mkcap:hover{fill:rgba(176,74,62,.26)}
+.mkring{fill:none;stroke:rgba(176,74,62,.8);stroke-width:4;cursor:pointer;pointer-events:stroke}
+.mkring:hover{stroke:var(--red)}
+/* 表决条：显示在楚河汉界上（棋盘正中，不遮棋子） */
+.board-prop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;align-items:center;gap:5px;max-width:calc(100% - 14px);
+  padding:2px 8px;border-radius:999px;border:1px solid rgba(176,74,60,.45);
+  background-color:rgba(246,238,226,.72);box-shadow:0 3px 10px -8px rgba(24,30,38,.45);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  font-size:11px;color:var(--ink);z-index:4;
+  animation:bpIn .18s cubic-bezier(.2,.9,.3,1.2) both}
+.board-prop .btn.sm{padding:1px 8px;font-size:11px;border-radius:7px;line-height:1.35;flex:none;white-space:nowrap}
+.board-prop[hidden]{display:none}
+.bp-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--red);box-shadow:0 0 0 1px rgba(46,52,61,.25)}
+.bp-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@keyframes bpIn{from{opacity:0;transform:translate(-50%,-50%) scale(.94)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.board.prop .river{opacity:0}
+.prop-src{fill:none;stroke-width:3;stroke-dasharray:7 5;opacity:.95}
+.prop-dst{fill:none;stroke-width:3}
+.prop-line{fill:none;stroke-width:2.5;stroke-dasharray:9 7;opacity:.9;animation:propdash 1.1s linear infinite}
+.prop-head{stroke:none}
+@keyframes propdash{to{stroke-dashoffset:-32}}
+@media (prefers-reduced-motion: reduce){.prop-line{animation:none}}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:rgba(243,238,226,.9);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border-radius:11px;z-index:5}
+.overlay[hidden]{display:none}
+.result{font-size:20px;font-weight:700;letter-spacing:.06em;text-align:center;padding:0 20px;line-height:1.7;color:var(--ink)}
+.status,.log,.result,.roomcode,.tag{overflow-wrap:anywhere}
+.status{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);font-size:13px;line-height:1.7;color:var(--ink);min-height:46px}
+.btns{display:flex;gap:10px}
+.btn{appearance:none;border:1px solid var(--line2);background-color:rgba(240,235,222,.9);color:var(--ink);padding:10px 16px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.2s;box-shadow:0 1px 0 rgba(255,255,255,.55) inset}
+.btn:hover{border-color:var(--ink2);background-color:var(--paper3)}
+.btn.primary{background:var(--tile);border-color:var(--tile);color:var(--paper3);font-weight:700;box-shadow:0 1px 0 rgba(255,255,255,.18) inset}
+.btn.primary:hover{background:#4A525E}
+.btn.armed{background-color:rgba(176,74,62,.12);border-color:rgba(176,74,62,.6);color:var(--red2)}
+.btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.tabs{display:flex;gap:8px}
+.tab{flex:1;appearance:none;border:1px solid var(--line);background-color:rgba(240,235,222,.88);color:var(--ink2);padding:8px 0;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.2s}
+.tab:hover{color:var(--ink);border-color:var(--line2);background-color:var(--paper3)}
+.tab.on{background:var(--tile);border-color:var(--tile);color:var(--paper3);box-shadow:0 1px 0 rgba(255,255,255,.18) inset}
+.online{border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.orow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.orow .inp{flex:1;min-width:72px;background:#FBF8F0;border:1px solid var(--line2);border-radius:8px;color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;letter-spacing:.18em}
+.orow .inp:focus{outline:none;border-color:var(--ink2);box-shadow:0 0 0 2px rgba(46,52,61,.08)}
+.roomcode{font-size:13px;color:var(--ink2)}
+.roomcode b{font-family:'DotGothic16','JetBrains Mono',monospace;color:var(--red2);letter-spacing:.16em;font-weight:400}
+.drawrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--red2)}
+.side.on{background:var(--tile);border-color:var(--tile);color:var(--paper3)}
+.side.lock{opacity:.45;cursor:not-allowed}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.roster{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink2)}
+.roster .rrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.roster .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(46,52,61,.25)}
+.roster .who{color:var(--ink)}
+.roster .me{font-weight:700}
+.proprow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink);flex-wrap:wrap}
+.proprow[hidden]{display:none}
+.phrases{display:flex;flex-wrap:wrap;gap:6px}
+.phrases .ph{appearance:none;border:1px solid var(--line2);background-color:rgba(248,244,234,.92);color:var(--ink);font:inherit;font-size:12px;padding:5px 11px;border-radius:999px;cursor:pointer;transition:.15s}
+.phrases .ph:hover{border-color:var(--ink2);background:var(--paper3)}
+.phrases .ph.on{background:var(--red);border-color:var(--red);color:#FFF8F2}
+.note{pointer-events:none}
+#gNotes .note{transform-box:fill-box;transform-origin:center;
+  animation:noteIn .2s cubic-bezier(.2,.9,.3,1.2) both, noteOut 3.6s linear 6.2s forwards;
+  will-change:opacity}
+@keyframes noteIn{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
+@keyframes noteOut{from{opacity:1}to{opacity:0}}
+@media (prefers-reduced-motion: reduce){
+  #gNotes .note{animation:noteIn .01s linear both, noteOut .01s linear 8s forwards}
+}
+/* —— 标点交流（棋盘下方独立模块）—— */
+.markbar{width:var(--bdw);margin:12px auto 0;padding:10px 13px;border:1px solid var(--line);border-radius:10px;
+  background-color:rgba(240,235,222,.9);
+  background-image:repeating-linear-gradient(0deg,rgba(46,52,61,.035) 0 1px,transparent 1px 4px);
+  box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  display:flex;flex-direction:column;gap:7px}
+.mk-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.mk-title{font-size:13px;color:var(--ink);font-weight:700;letter-spacing:.04em}
+.mk-title::before{content:'// ';color:var(--ink3);font-weight:400}
+.mk-me{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink2)}
+.mk-me .dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--red);box-shadow:0 0 0 1px rgba(46,52,61,.25)}
+.mk-state{font-size:11.5px;color:var(--ink3);margin-left:auto}
+.mk-state.on{color:var(--red2);font-weight:700}
+.mk-toggle.on{background:var(--red);border-color:var(--red);color:#FFF8F2;font-weight:700}
+.mk-tip{font-size:11px;color:var(--ink3)}
+.markbar.on{border-color:rgba(176,74,60,.45);box-shadow:0 0 0 1px rgba(176,74,60,.16),0 10px 22px -20px rgba(24,30,38,.8)}
+.board.mark{cursor:crosshair}
+.board-frame.marking{box-shadow:0 0 0 2px rgba(176,74,60,.35),0 16px 34px -26px rgba(24,30,38,.9)}
+.tray-block{border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.tray-title{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:8px}
+.tray-title .chip{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.tray-title .chip.red{background:var(--red)}
+.tray-title .chip.black{background:var(--tile)}
+.tray-title b{color:var(--ink);font-weight:600}
+.tray{display:flex;flex-wrap:wrap;gap:5px 9px;min-height:32px}
+.mini{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-family:'Kaiti SC','STKaiti','KaiTi',serif;border:1.5px solid;flex:none}
+.mini.red{color:var(--red2);border-color:rgba(176,74,60,.55);background:var(--paper3)}
+.mini.black{color:var(--ink);border-color:rgba(46,52,61,.45);background:var(--paper3)}
+.mg{display:inline-flex;align-items:center;gap:3px}
+.mg .cnt{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color:var(--ink2);font-weight:400}
+.mg.landing{opacity:0}
+.mg.pop{animation:popin .34s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes popin{0%{transform:scale(.25) rotate(-20deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes landpop{0%{transform:scale(.72)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+.pc.landed{animation:landpop .3s ease-out;transform-box:fill-box;transform-origin:center}
+.flyer{position:fixed;z-index:60;pointer-events:none;perspective:700px}
+.flyer .inner{position:relative;width:100%;height:100%;transform-style:preserve-3d}
+.flyer .face{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;border:2px solid;font-family:'Kaiti SC','STKaiti','KaiTi',serif;line-height:1}
+.flyer.red .face.front{color:var(--red2);border-color:var(--red);background:var(--paper3)}
+.flyer.black .face.front{color:var(--ink);border-color:var(--ink);background:var(--paper3)}
+.flyer .face.back{transform:rotateY(180deg);background:var(--tile);border-color:#57616E}
+.flyer .face.back::after{content:'';width:68%;height:68%;border-radius:50%;border:1.5px solid rgba(240,235,222,.35)}
+.flyer .rot180{width:100%;height:100%;transform:rotate(180deg)}
+.log{height:150px;overflow:auto;border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:10px 12px;font-size:11.5px;line-height:1.8;color:var(--ink2)}
+.log div{border-bottom:1px dashed rgba(46,52,61,.12);padding:2px 0}
+.log div:first-child{color:var(--ink)}
+details.rules{border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:10px 14px;font-size:12px;color:var(--ink2);line-height:1.9}
+details.rules summary{cursor:pointer;color:var(--ink);font-size:13px;outline:none}
+details.rules ul{margin:8px 0 2px;padding-left:18px}
+details.rules li{margin:4px 0}
+details.rules b{color:var(--ink)}
+@media (max-width:760px){.board-col{--bdw:100%}.board-frame{width:var(--bdw)}h1{font-size:24px}.wrap{padding-top:18px}}
+</style>
+</head>
+<body>
+<div id="bg" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="top">
+    <h1>暗棋<span class="en">DARK CHESS</span></h1>
+    <a class="back" href="/">返回门户</a>
+  </header>
+  <div class="layout">
+    <section class="board-col">
+      <div class="board-frame">
+        <div class="board">
+          <svg id="svg" viewBox="0 0 716 794" xmlns="http://www.w3.org/2000/svg">
+            <g id="gBoard"></g>
+            <g id="gPieces"></g>
+            <g id="gMarks"></g>
+            <g id="gNotes"></g>
+          </svg>
+          <div class="board-prop" id="boardProp" hidden>
+            <span class="bp-dot" id="bpDot"></span>
+            <span class="bp-text" id="bpText">—</span>
+            <button class="btn sm primary" id="btnAgree">同意</button>
+            <button class="btn sm" id="btnDecline">否决</button>
+          </div>
+          <div class="overlay" id="overlay" hidden>
+            <div class="result" id="resultText"></div>
+            <button class="btn primary" id="btnAgain">再来一局</button>
+          </div>
+        </div>
+      </div>
+      <section class="markbar" id="markBar" hidden>
+        <div class="mk-head">
+          <span class="mk-title">标点交流</span>
+          <span class="mk-me" id="mkMe"><i class="dot" id="mkDot"></i>你的标点</span>
+          <span class="mk-state" id="mkState">关闭</span>
+          <button class="btn sm mk-toggle" id="btnMark">开始标点</button>
+          <button class="btn sm" id="btnMarkClear">清空</button>
+        </div>
+        <div class="phrases" id="phrases"></div>
+        <div class="mk-tip">点一个短语 → 再点棋盘交叉点：全房可见，10 秒自动淡出</div>
+      </section>
+
+    </section>
+    <aside class="side">
+      <div class="tabs">
+        <button class="tab on" id="tabLocal">单机</button>
+        <button class="tab" id="tabOnline">联机</button>
+      </div>
+      <div class="online" id="onlineBox" hidden>
+        <div class="orow" id="sideRow">
+          <span class="tag">选边</span>
+          <button class="btn sm side" id="sideBottom">下方</button>
+          <button class="btn sm side" id="sideTop">上方</button>
+          <span class="tag" id="sideHint">两边都可以多人</span>
+        </div>
+        <div class="orow" id="joinRow">
+          <button class="btn" id="btnCreate">创建房间</button>
+          <input class="inp" id="roomInput" placeholder="房间码（6 位数字）" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
+          <button class="btn" id="btnJoin">加入</button>
+        </div>
+        <div class="orow" id="roomRow" hidden>
+          <span class="roomcode">房间 <b id="roomCode">—</b></span>
+          <button class="btn sm" id="btnCopy">复制邀请链接</button>
+          <button class="btn sm" id="btnLeaveRoom">退出</button>
+        </div>
+        <div class="roster" id="roster"></div>
+        <div class="orow" id="startRow" hidden>
+          <button class="btn primary" id="btnStart">开始对局</button>
+          <span class="tag" id="startHint">两个半场都有人后，双方同意才开始</span>
+        </div>
+      </div>
+      <div class="status" id="status">准备中…</div>
+      <div class="btns">
+        <button class="btn" id="btnNew">新开一局</button>
+        <button class="btn" id="btnDraw">和棋</button>
+      </div>
+      <div class="tray-block">
+        <div class="tray-title"><span class="chip red"></span>红子被吃 <b id="cntRed">0</b></div>
+        <div class="tray" id="trayRed"></div>
+        <div class="tray-title" style="margin-top:6px"><span class="chip black"></span>黑子被吃 <b id="cntBlack">0</b></div>
+        <div class="tray" id="trayBlack"></div>
+      </div>
+      <div class="log" id="log"></div>
+      <details class="rules">
+        <summary>玩法规则</summary>
+        <ul>
+          <li>32 子全部打乱盖放。开局双方各翻开自己半场底线正中的一格定色，翻到什么色就执什么色（两张同色则重洗重摆）。</li>
+          <li>暗子只能由它所在半场的一方操作；走完（或被吃）立即翻开，之后按真实兵种走，归色控制、可以过河。</li>
+          <li>暗子的第一次走法按「它所在格原本的兵种」算：马蹩腿、炮要炮架、象塞眼、士斜一步、將帥直一步；兵/卒 <b>暗时按所在格向前一步；翻开后朝对手方向走（所属玩家的对面）</b>，攻入对方半场后可横走。</li>
+          <li>士 / 象 / 將帥 没有九宫与河界限制：在任何位置都按自己的走法走（士斜一步、象走田、將帥直一步），被运到别处也能继续走。</li>
+          <li>暗子可以吃任意未知子（包括己方的暗子），翻开发现是自己的算误伤，子照掉。</li>
+          <li>吃对方將/帥即胜；误伤吃到自己的將/帥即负。</li>
+          <li>两个將/帥都翻开后不得照面（同横线或竖线、中间无子）：明子主动走成照面不能走；暗子翻出来才发现照面，则刚翻出的一方判负。</li>
+          <li>轮到自己无棋可走判负；和棋双方同意即可。</li>
+          <li>联机：点「联机」建房（6 位房间码）或输码加入，把房间码/邀请链接发给对方即可；<b>两个半场都有人后，任意一方点「开始对局」，双方都同意才开局翻牌</b>；走法由服务端判定，断线可重连。</li>
+          <li><b>一局结束后回到等待厅</b>：将帅被吃 / 无棋可走 / 和棋（或点「新开一局」）都会回到「选边」状态，可重新选边，<b>双方同意「开始对局」后再开新局</b>。</li>
+          <li><b>多人同房</b>：每个半场最多坐 4 人（下方 / 上方，选边入座）；纯邀请链接（只有房间码）会自动安排到人少的半场。</li>
+          <li><b>同边一致才走子</b>：轮到你这一边时，同边任何人都可以先「提议」一步棋，<b>同边在线成员全部同意</b>才真正落子；单人在线时一步到位。和棋 / 新开一局属于双方事务，需两边在线成员全部同意，任一人否决即撤案。</li>
+          <li><b>标点交流</b>：点「标点」选一个预设短语，再点棋盘交叉点即可给全房看（棋手与同边伙伴都能用），10 秒自动淡出；「清空」可立即抹掉。</li>
+        </ul>
+      </details>
+    </aside>
+  </div>
+</div>
+<script>
+(function(){
+'use strict';
+
+/* ===== 常量 ===== */
+const ROWS=10, COLS=9, RED='r', BLK='b';
+const NAMES={
+  r:{K:'帥',A:'仕',B:'相',N:'馬',R:'車',C:'炮',P:'兵'},
+  b:{K:'將',A:'士',B:'象',N:'馬',R:'車',C:'砲',P:'卒'}
+};
+const FILES='abcdefghi';
+const RAD=34, PAD=46, STEP=78;
+/* 棋盘朝向：true 时上下左右镜像，让「玩家自己能控制的半场」永远在屏幕下方 */
+let FLIP=false;
+const X=c=>PAD+(FLIP?8-c:c)*STEP, Y=r=>PAD+(FLIP?9-r:r)*STEP;
+
+/* ===== 32 个标准开局点（位置兵种决定暗子首手） ===== */
+const BASE=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+(function(){
+  const back=['R','N','B','A','K','A','B','N','R'];
+  for(let c=0;c<9;c++){ BASE[0][c]={color:BLK,type:back[c]}; BASE[9][c]={color:RED,type:back[c]}; }
+  [1,7].forEach(c=>{ BASE[2][c]={color:BLK,type:'C'}; BASE[7][c]={color:RED,type:'C'}; });
+  [0,2,4,6,8].forEach(c=>{ BASE[3][c]={color:BLK,type:'P'}; BASE[6][c]={color:RED,type:'P'}; });
+})();
+const SQUARES=[];
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) if(BASE[r][c]) SQUARES.push([r,c]);
+
+/* ===== 工具 ===== */
+const $=id=>document.getElementById(id);
+const other=col=>col===RED?BLK:RED;
+const colorName=col=>col===RED?'红方':'黑方';
+const pieceName=p=>colorName(p.color)+NAMES[p.color][p.type];
+const inB=(r,c)=>r>=0&&r<ROWS&&c>=0&&c<COLS;
+const sqName=(r,c)=>FLIP?(FILES[8-c]+(r+1)):(FILES[c]+(10-r));
+// 服务端日志按「棋局坐标」写，翻转视角时把坐标与上下方位一起镜像
+const flipLogText=t=>{ if(!FLIP) return t;
+  return t.replace(/[a-i](?:10|[1-9])(?![0-9])/g,m=>FILES[8-FILES.indexOf(m[0])]+(11-parseInt(m.slice(1),10)))
+          .replace(/下方/g,'\u0001').replace(/上方/g,'下方').replace(/\u0001/g,'上方'); };
+const halfOf=r=>r>=5?'bottom':'top';
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}return a;};
+const REDUCE=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/* ===== 状态 ===== */
+let S=null;
+
+/* ===== 开局 ===== */
+function newGame(){
+  document.querySelectorAll('.flyer').forEach(el=>el.remove());
+  resetDrawBtn();
+  const sq=shuffle(SQUARES.map(s=>s.slice()));
+  const mult={K:1,A:2,B:2,N:2,R:2,C:2,P:5};
+  let board=null;
+  for(let guard=0;guard<500;guard++){
+    const pieces=[];
+    for(const col of [RED,BLK])
+      for(const t of ['K','A','B','N','R','C','P'])
+        for(let i=0;i<mult[t];i++) pieces.push({color:col,type:t});
+    shuffle(pieces);
+    board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+    sq.forEach(([r,c],i)=>{ board[r][c]={color:pieces[i].color,type:pieces[i].type,hidden:true}; });
+    if(board[9][4].color!==board[0][4].color) break;   // 定色两张必须一红一黑，否则重洗
+  }
+  board[9][4].hidden=false;
+  board[0][4].hidden=false;
+  S={
+    board, turn:RED, over:false, resultText:'',
+    sel:null, moves:[], log:[], taken:[], pending:null, landed:null,
+    bottomColor:board[9][4].color, topColor:board[0][4].color
+  };
+  addLog(`定色：下方执${colorName(S.bottomColor)} · 上方执${colorName(S.topColor)} · ${colorName(RED)}先行`);
+  addLog(`翻开將位：下方 e1 是 ${pieceName(board[9][4])}，上方 e10 是 ${pieceName(board[0][4])}`);
+  renderAll();
+}
+
+/* ===== 走法生成 ===== */
+const KDIR=[[-1,0],[1,0],[0,-1],[0,1]];
+const ADIR=[[-1,-1],[-1,1],[1,-1],[1,1]];
+const NDIR=[[-2,-1,-1,0],[-2,1,-1,0],[2,-1,1,0],[2,1,1,0],[-1,-2,0,-1],[1,-2,0,-1],[-1,2,0,1],[1,2,0,1]];
+const RDC=[[-1,0],[1,0],[0,-1],[0,1]];
+
+function pseudoMoves(board,r,c){
+  const p=board[r][c];
+  if(!p) return [];
+  const type=p.hidden?BASE[r][c].type:p.type;
+  const out=[];
+  const add=(tr,tc)=>{
+    if(!inB(tr,tc)) return;
+    const t=board[tr][tc];
+    if(t&&!p.hidden&&!t.hidden&&t.color===p.color) return;   // 明子不能吃己方明子；暗子可以吃任意子
+    out.push([tr,tc]);
+  };
+  if(type==='K'){                       // 將/帥：一步直，无九宫限制（在任意位置都按此走法）
+    for(const[dr,dc]of KDIR) add(r+dr,c+dc);
+  }else if(type==='A'){                 // 士：一步斜，无九宫限制
+    for(const[dr,dc]of ADIR) add(r+dr,c+dc);
+  }else if(type==='B'){                 // 象：走田（塞象眼），无河界限制
+    for(const[dr,dc]of ADIR){const tr=r+2*dr,tc=c+2*dc; if(!inB(tr,tc)||board[r+dr][c+dc]) continue; add(tr,tc);}
+  }else if(type==='N'){
+    for(const[dr,dc,lr,lc]of NDIR){const tr=r+dr,tc=c+dc; if(!inB(tr,tc)||board[r+lr][c+lc]) continue; add(tr,tc);}
+  }else if(type==='R'){
+    for(const[dr,dc]of RDC){let tr=r+dr,tc=c+dc; while(inB(tr,tc)){ if(board[tr][tc]){add(tr,tc);break;} add(tr,tc); tr+=dr;tc+=dc; }}
+  }else if(type==='C'){
+    for(const[dr,dc]of RDC){let tr=r+dr,tc=c+dc,screen=false; while(inB(tr,tc)){ if(board[tr][tc]){ if(screen){add(tr,tc);break;} screen=true; } else if(!screen) add(tr,tc); tr+=dr;tc+=dc; }}
+  }else if(type==='P'){          // 兵/卒：暗子按所在格「向前一步」；翻开后朝「对手方向」（所属玩家的对面）走
+    const north=p.hidden?(BASE[r][c].color===RED):(p.color===S.bottomColor);
+    const f=north?-1:1;
+    add(r+f,c);
+    const crossed=north?r<=4:r>=5;          // 进入对方半场后可横走
+    if(crossed){ add(r,c-1); add(r,c+1); }
+  }
+  return out;
+}
+
+/* ===== 合法性（照面 / 吃將 / 误伤） ===== */
+function sameLineClear(board,a,b){
+  if(a.r!==b.r&&a.c!==b.c) return false;
+  const dr=Math.sign(b.r-a.r), dc=Math.sign(b.c-a.c);
+  let r=a.r+dr,c=a.c+dc;
+  while(r!==b.r||c!==b.c){ if(board[r][c]) return false; r+=dr;c+=dc; }
+  return true;
+}
+
+function evaluateMove(board,fr,fc,tr,tc){
+  const p=board[fr][fc];
+  if(!p) return {ok:false};
+  const t=board[tr][tc];
+  if(t&&!p.hidden&&!t.hidden&&t.color===p.color) return {ok:false};
+  const nb=board.map(row=>row.slice());
+  nb[tr][tc]=p; nb[fr][fc]=null;
+  const gs=[];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const q=nb[r][c];
+    if(q&&q.type==='K') gs.push({color:q.color,r,c,revealed:!q.hidden||(r===tr&&c===tc)});
+  }
+  if(gs.length===2&&gs[0].revealed&&gs[1].revealed&&sameLineClear(nb,gs[0],gs[1])){
+    if(p.hidden&&p.type==='K') return {ok:true,capture:t||null,reveal:true,end:{type:'facing',loser:p.color}};
+    return {ok:false};   // 明子主动走成照面：禁手
+  }
+  if(t&&t.type==='K') return {ok:true,capture:t,reveal:p.hidden,end:{type:'capture',loser:t.color}};
+  return {ok:true,capture:t||null,reveal:p.hidden,end:null};
+}
+
+const legalMoves=(board,r,c)=>pseudoMoves(board,r,c).filter(([tr,tc])=>evaluateMove(board,r,c,tr,tc).ok);
+
+/* ===== 控制权 ===== */
+const slotOfColor=col=>col===S.bottomColor?'bottom':'top';
+function operableAt(r,c){
+  const p=S.board[r][c];
+  if(!p||S.over) return false;
+  if(p.hidden) return halfOf(r)===slotOfColor(S.turn);
+  return p.color===S.turn;
+}
+function hasAnyMove(){
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)
+    if(operableAt(r,c)&&legalMoves(S.board,r,c).length) return true;
+  return false;
+}
+
+/* ===== 行棋 ===== */
+function addLog(t){ S.log.unshift(t); if(S.log.length>60) S.log.pop(); }
+
+function selectAt(r,c){
+  if(!operableAt(r,c)){ S.sel=null;S.moves=[];renderAll(); return; }
+  S.sel={r,c};
+  S.moves=legalMoves(S.board,r,c);
+  renderAll();
+}
+
+function doMove(tr,tc){
+  if(S.over||!S.sel) return;
+  const fr=S.sel.r, fc=S.sel.c;
+  const v=evaluateMove(S.board,fr,fc,tr,tc);
+  if(!v.ok) return;
+  applyMove(fr,fc,tr,tc,v);
+}
+
+function applyMove(fr,fc,tr,tc,v){
+  const p=S.board[fr][fc], t=S.board[tr][tc];
+  const wasHidden=p.hidden;
+  const capWasHidden=!!(t&&t.hidden);
+  let capRect=null;
+  if(t){
+    const d=document.querySelector(`#gPieces .pc[data-r="${tr}"][data-c="${tc}"] .disc`);
+    if(d) capRect=d.getBoundingClientRect();
+  }
+  S.board[tr][tc]=p; S.board[fr][fc]=null;
+  if(t){ t.hidden=false; S.taken.push(t); }
+  if(wasHidden) p.hidden=false;
+  S.landed={r:tr,c:tc};
+  if(t&&!REDUCE) S.pending={color:t.color,type:t.type};
+  let msg;
+  if(wasHidden){
+    const b=BASE[fr][fc];
+    msg=`${colorName(S.turn)} 暗子（${NAMES[b.color][b.type]}位）${sqName(fr,fc)}→${sqName(tr,tc)}，翻开是 ${pieceName(p)}`;
+  }else{
+    msg=`${colorName(p.color)} ${NAMES[p.color][p.type]} ${sqName(fr,fc)}→${sqName(tr,tc)}`;
+  }
+  if(t) msg+=`，${t.color===p.color?'误伤己方':'吃掉'}${NAMES[t.color][t.type]}`;
+  addLog(msg);
+  S.sel=null; S.moves=[];
+  if(v.end){ finish(v.end); renderAll(); flyCaptured(t,capRect,capWasHidden,tr); return; }
+  S.turn=other(S.turn);
+  if(!hasAnyMove()) finish({type:'nomove',loser:S.turn});
+  renderAll();
+  flyCaptured(t,capRect,capWasHidden,tr);
+}
+
+/* 被吃子：「翻面 → 飞向侧边托盘 → 亮出」动画 */
+function flyCaptured(t,capRect,capWasHidden,capRow){
+  if(!t) return;
+  const token=S.pending;
+  if(!token) return;
+  if(!capRect||REDUCE){ if(S.pending===token) S.pending=null; return; }
+  const traySel=token.color===RED?'trayRed':'trayBlack';
+  const target=$(traySel).querySelector(`.mg[data-color="${token.color}"][data-type="${token.type}"] .mini`);
+  if(!target){ S.pending=null; return; }
+  const dst=target.getBoundingClientRect();
+  const size=capRect.width;
+  const flyer=document.createElement('div');
+  flyer.className='flyer '+(t.color===RED?'red':'black');
+  Object.assign(flyer.style,{left:capRect.left+'px',top:capRect.top+'px',width:size+'px',height:size+'px'});
+  const capUp=MODE==='local'&&(capWasHidden?halfOf(capRow||0)==='top':t.color===S.topColor);
+  flyer.innerHTML=(capUp?'<div class="rot180">':'')+`<div class="inner"><div class="face front">${NAMES[t.color][t.type]}</div><div class="face back"></div></div>`+(capUp?'</div>':'');
+  flyer.querySelectorAll('.face').forEach(el=>{ el.style.fontSize=(size*0.56)+'px'; });
+  const inner=flyer.querySelector('.inner');
+  inner.style.transform=capWasHidden?'rotateY(180deg)':'rotateY(0deg)';
+  document.body.appendChild(flyer);
+  const dx=dst.left+dst.width/2-(capRect.left+size/2);
+  const dy=dst.top+dst.height/2-(capRect.top+size/2);
+  const scale=dst.width/size;
+  // 时间轴：暗子先在原地翻开（此阶段不位移），翻完再连续滑向侧栏托盘
+  const rise=capWasHidden?560:330, fly=capWasHidden?1150:920;
+  const total=rise+fly;
+  if(capWasHidden){
+    inner.animate([
+      {transform:'rotateY(180deg) scale(1)',offset:0},
+      {transform:'rotateY(180deg) scale(1.04)',offset:.08},
+      {transform:'rotateY(0deg) scale(1.24)',offset:1}
+    ],{duration:rise,easing:'cubic-bezier(.33,.75,.3,1)',fill:'forwards'});
+  }else{
+    inner.animate([
+      {transform:'rotateY(0deg) scale(1)',offset:0},
+      {transform:'rotateY(-6deg) scale(1.2)',offset:.6},
+      {transform:'rotateY(0deg) scale(1.24)',offset:1}
+    ],{duration:rise,easing:'ease-out',fill:'forwards'});
+  }
+  const move=flyer.animate([
+    {transform:'translate(0,0) scale(1)',filter:'drop-shadow(0 0 0 rgba(232,180,76,0))',offset:0,
+     easing:'cubic-bezier(.3,.85,.35,1)'},
+    {transform:'translate(0,0) scale(1.24)',filter:'drop-shadow(0 0 16px rgba(232,180,76,.9))',
+     offset:rise/total, easing:'cubic-bezier(.35,.7,.3,1)'},        // 到此为止只在原地翻面/放大
+    {transform:`translate(${dx}px,${dy}px) scale(${scale})`,filter:'drop-shadow(0 0 0 rgba(232,180,76,0))',offset:1}
+  ],{duration:total,fill:'forwards'});
+  const done=()=>{
+    flyer.remove();
+    if(S.pending===token) S.pending=null;
+    const g=$(traySel).querySelector(`.mg[data-color="${token.color}"][data-type="${token.type}"]`);
+    if(g){ g.classList.remove('landing'); g.classList.add('pop'); }
+  };
+  move.finished.then(done).catch(done);
+}
+
+function finish(end){
+  S.over=true;
+  if(end.type==='draw'){ S.resultText='和棋 · 双方同意'; }
+  else{
+    const winner=other(end.loser);
+    const why=end.type==='capture'?`${colorName(end.loser)}的${NAMES[end.loser].K}被吃`
+      :end.type==='facing'?`${colorName(end.loser)}將/帥照面`
+      :`${colorName(end.loser)}无棋可走`;
+    S.resultText=`${colorName(winner)}胜 · ${why}`;
+  }
+  addLog('—— '+S.resultText+' ——');
+}
+
+/* ===== 渲染 ===== */
+/* 细像素苏州园林背景 —— 横向长条，主体压左右两侧，中上部留白。
+   逻辑像素逐点绘制：单像素勾勒、有序抖动明暗、无渐变无抗锯齿。
+   调色：黛瓦墨黑 / 粉墙米白 / 青竹翠绿 / 湖水灰青 / 远山靛蓝（低饱和薄雾）。 */
+/* 细像素苏州园林背景 —— 横向长条，主体压左右两侧，中上部留白。
+   逻辑像素逐点绘制：单像素勾勒、有序抖动明暗、无渐变无抗锯齿。
+   调色：黛瓦墨黑 / 粉墙米白 / 青竹翠绿 / 湖水灰青 / 远山靛蓝（低饱和薄雾）。 */
+/* 细像素苏州园林背景 —— 横向长条，主体压左右两侧，中上部留白。
+   逻辑像素逐点绘制：单像素勾勒、有序抖动明暗、无渐变无抗锯齿。
+   调色：黛瓦墨黑 / 粉墙米白 / 青竹翠绿 / 湖水灰青 / 远山靛蓝（低饱和薄雾）。 */
+/* 细像素苏州园林背景 —— 横向长条，主体压左右两侧，中上部留白。
+   逻辑像素逐点绘制：单像素勾勒、有序抖动明暗、无渐变无抗锯齿。
+   调色：黛瓦墨黑 / 粉墙米白 / 青竹翠绿 / 湖水灰青 / 远山靛蓝（低饱和薄雾）。 */
+/* 细像素苏州园林背景 —— 横向长条，主体压左右两侧，中上部留白。
+   逻辑像素逐点绘制：单像素勾勒、有序抖动明暗、无渐变无抗锯齿。
+   调色：黛瓦墨黑 / 粉墙米白 / 青竹翠绿 / 湖水灰青 / 远山靛蓝（低饱和薄雾）。 */
+function paintGarden(d,W,H){
+  const BAY=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+  const CC={};
+  const px=(x,y,c,a)=>{
+    x=x|0; y=y|0;
+    if(x<0||y<0||x>=W||y>=H) return;
+    const A=(a===undefined)?1:a;
+    if(A<=0) return;
+    if(A<1){ if((BAY[((y&3)<<2)+(x&3)]+0.5)/16>A) return; }
+    let t=CC[c];
+    if(t===undefined) t=CC[c]=[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];
+    const i=(y*W+x)<<2;
+    d[i]=t[0]; d[i+1]=t[1]; d[i+2]=t[2]; d[i+3]=255;
+  };
+  const bl=(x,y,c,p)=>{ if((BAY[((y&3)<<2)+(x&3)]/16)<p) px(x,y,c); };
+  const rc=(x,y,w,h,c,a)=>{ for(let j=0;j<h;j++) for(let i=0;i<w;i++) px(x+i,y+j,c,a); };
+  const hl=(x,y,w,c,a)=>{ for(let i=0;i<w;i++) px(x+i,y,c,a); };
+  const vl=(x,y,h,c,a)=>{ for(let i=0;i<h;i++) px(x,y+i,c,a); };
+  const ln=(x0,y0,x1,y1,c,a)=>{
+    x0=Math.round(x0); y0=Math.round(y0); x1=Math.round(x1); y1=Math.round(y1);
+    const dx=Math.abs(x1-x0), dy=-Math.abs(y1-y0), sx=x0<x1?1:-1, sy=y0<y1?1:-1;
+    let err=dx+dy;
+    for(;;){ px(x0,y0,c,a); if(x0===x1&&y0===y1) break; const e2=2*err;
+      if(e2>=dy){ err+=dy; x0+=sx; } if(e2<=dx){ err+=dx; y0+=sy; } }
+  };
+  const disc=(cx,cy,r,c,a)=>{ const R=Math.ceil(r); for(let j=-R;j<=R;j++){ const w=Math.sqrt(Math.max(0,r*r-j*j)); for(let i=-w;i<=w;i++) px(cx+i,cy+j,c,a); } };
+  const ring=(cx,cy,r,t,c,a)=>{ const R=Math.ceil(r), r0=r-t; for(let j=-R;j<=R;j++) for(let i=-R;i<=R;i++){ const q=Math.sqrt(i*i+j*j); if(q<=r+.4&&q>=r0-.4) px(cx+i,cy+j,c,a); } };
+  const el=(cx,cy,rx,ry,c,a)=>{ const R=Math.ceil(ry); for(let j=-R;j<=R;j++){ const w=rx*Math.sqrt(Math.max(0,1-(j*j)/(ry*ry))); for(let i=-w;i<=w;i++) px(cx+i,cy+j,c,a); } };
+  const glow=(cx,cy,r,c,a0)=>{ const R=Math.ceil(r); for(let j=-R;j<=R;j++) for(let i=-R;i<=R;i++){ const q=Math.sqrt(i*i+j*j); if(q>r) continue; const t=1-q/r; px(cx+i,cy+j,c,a0*t*t); } };
+  const grad=(x,y,w,h,c0,c1)=>{ for(let j=0;j<h;j++){ const t=j/Math.max(1,h-1);
+    for(let i=0;i<w;i++){ const th=(BAY[(((y+j)&3)<<2)+((x+i)&3)]+0.5)/16; px(x+i,y+j,th<t?c1:c0); } } };
+
+  /* ---------------- 调色板 ---------------- */
+  const SKY0='#ECEEE7', SKY1='#E1E6E1', SKY2='#D3DCDA', MIST='#E5E9E3', MIST2='#DDE3DE';
+  const MF0='#BCC7D2', MF1='#DDE4E3';                    // 远山（靛蓝，雾化）
+  const MN0='#A7B5C5', MN1='#D9E0E0';                    // 近山
+  const WALL='#DCD6C4', WALL2='#D3CDBB', WALLD='#C4BDAA', WALLL='#B6AF9D';
+  const TIL0='#48505B', TIL1='#565F6C', TIL2='#69727F', TILL='#7C848F';
+  const ST0='#AEAB9E', ST1='#C4C1B3', ST2='#97948B', ST3='#85827B';
+  const BAM0='#7D9C75', BAM1='#6B8B65', BAM2='#5B7A57', BAML='#A5BE96', BAMD='#4D6A4C';
+  const WAT='#AABBBA', WAT2='#94A7A9', WATL='#C9D6D3', WATD='#84969C';
+  const LOT='#7B9E74', LOTH='#A0BC95', LOTD='#5D8262';
+  const WOOD='#A38270', WOODD='#836555', WOODL='#BE9C86';
+
+  const R=W, C=Math.round(W/2), WATER=246;
+
+  /* ============ 1. 天空：薄雾晨光 ============ */
+  grad(0,0,W,110,SKY0,SKY1);
+  grad(0,110,W,100,SKY1,SKY2);
+  glow(Math.round(W*0.70),26,120,'#F6F6EE',0.5);
+  glow(Math.round(W*0.70),26,300,'#F6F6EE',0.2);
+
+  /* ============ 2. 远山 ============ */
+  let sd=987654321;
+  const rnd=()=>((sd=(sd*1103515245+12345)&0x7fffffff)/0x7fffffff);
+  const fillRidge=(pts,yEnd,c0,c1)=>{
+    for(let x=0;x<W;x++){
+      let yt=pts[pts.length-1][1];
+      for(let i=0;i<pts.length-1;i++){
+        const ax=pts[i][0],ay=pts[i][1],bx=pts[i+1][0],by=pts[i+1][1];
+        if(x>=ax&&x<=bx){ const t=(x-ax)/Math.max(1,bx-ax); yt=ay+(by-ay)*t; break; }
+      }
+      yt=Math.round(yt)+(((x*5)%3)-1);
+      if(yt<0) yt=0;
+      for(let y=yt;y<yEnd;y++){
+        const t=(y-yt)/Math.max(1,yEnd-yt), q=Math.min(1,Math.max(0,(t-0.08)/0.74));
+        const th=(BAY[((y&3)<<2)+(x&3)]+0.5)/16;
+        px(x,y,q>th?c1:c0);
+      }
+    }
+  };
+  const PT=(fx,fy)=>[Math.round(W*fx),fy];
+  fillRidge([PT(-.02,138),PT(.05,122),PT(.09,129),PT(.15,110),PT(.20,125),PT(.26,116),PT(.33,132),
+             PT(.40,118),PT(.47,128),PT(.55,112),PT(.62,126),PT(.70,117),PT(.78,131),PT(.86,119),PT(1.02,130)],234,MF0,MF1);
+  fillRidge([PT(-.02,158),PT(.07,143),PT(.13,150),PT(.21,137),PT(.30,149),PT(.38,141),PT(.46,151),
+             PT(.56,139),PT(.64,149),PT(.73,142),PT(.82,151),PT(.90,143),PT(1.02,152)],244,MN0,MN1);
+
+  /* ============ 3. 竹（竹叶成团、竹竿分明、层层推远） ============ */
+  const hsh=(x,y)=>{ let n=(x*374761393+y*668265263)|0; n=(n^(n>>>13))*1274126177; return ((n^(n>>>16))>>>0)/4294967296; };
+  const dth=(x,y)=>{ const t=(BAY[((y&3)<<2)+(x&3)]+0.5)/16; return t*0.72+hsh(x,y)*0.28; };
+  // 叶团：一簇短笔触
+  const cluster=(cx,cy,c1,c2,n,r)=>{
+    for(let i=0;i<n;i++){
+      const a=-Math.PI/2+(rnd()*2-1)*1.5, len=2+Math.round(rnd()*r);
+      let x=cx,y=cy;
+      for(let k=0;k<len;k++){
+        x+=Math.cos(a)*0.95+rnd()*0.5; y+=Math.sin(a)*0.8+rnd()*0.45;
+        px(x,y,(k<len*0.55&&i%2)?c1:c2);
+        if(k===len-1) px(x+1,y,c1,0.5);
+      }
+    }
+  };
+  const stalk=(x,top,base,w,c,shade)=>{
+    let drift=0;
+    for(let y=top;y<base;y++){
+      if(y%7===0) drift+=(rnd()<0.5?-0.34:0.34);
+      const xx=Math.round(x+drift);
+      px(xx,y,c); if(w>1) px(xx+1,y,shade);
+      if(((y-top)%10)===3){ px(xx-1,y,shade); if(w>1) px(xx+w,y,shade); }
+    }
+  };
+  // 竹林：底色叶幕 + 竹竿 + 叶团
+  const grove=(x0,x1,base,topMin,topMax,nBam,cMass,cL,cM,cD)=>{
+    for(let y=topMin;y<base;y++){                        // 叶幕（上稀下密）
+      const t=(y-topMin)/(base-topMin);
+      const d=0.20+0.62*Math.pow(t,1.3);
+      for(let x=x0;x<x1;x++){
+        const dm=d*(0.6+0.55*hsh(x*3,y*5));
+        if(dth(x,y)<dm) px(x,y,cMass);
+      }
+    }
+    for(let i=0;i<nBam;i++){
+      const x=Math.round(x0+(x1-x0-2)*(i/(nBam-1||1))+(rnd()-0.5)*3);
+      const top=Math.round(topMin+rnd()*(topMax-topMin));
+      const near=rnd();
+      const col=near<0.30?cL:(near<0.70?cM:cD);
+      stalk(x,top,base,1+(rnd()<0.3?1:0),col,BAMD);
+      const n=2+Math.round(rnd()*2);
+      for(let s=0;s<n;s++){
+        const cy=top+Math.round((base-top)*(0.06+0.40*rnd()));
+        cluster(x+ (rnd()<0.5?-2:2)+Math.round((cy-top)*0.05), cy, near<0.45?cL:cM, col, 4+Math.round(rnd()*4), 3+Math.round(rnd()*4));
+      }
+    }
+  };
+  grove(0,206,146,18,66,30,'#93AC8A','#A3BC94',BAM0,BAM2);      // 左后竹林（茂密）
+  grove(150,210,150,60,112,9,'#A0B694','#AFC4A0',BAM1,BAM2);
+  grove(R-334,R-232,236,80,138,12,'#9DB394','#A9BF9C',BAM1,BAM2);
+  grove(C-100,C+70,238,96,152,15,'#A6BB9B',BAM0,BAM1,BAM2);
+
+  /* ============ 3b. 远景薄雾（只罩天空·远山·竹林，建筑另行处理） ============ */
+  for(let y=48;y<104;y++){
+    const a=0.42*Math.max(0,1-Math.abs(y-72)/26);
+    for(let x=0;x<W;x++) px(x,y,MIST,a*0.8);
+  }
+  for(let y=104;y<148;y++){
+    const a=0.24*Math.max(0,1-Math.abs(y-126)/24);
+    for(let x=0;x<W;x++) px(x,y,MIST,a*0.8);
+  }
+  for(let y=186;y<214;y++){
+    const a=0.30*Math.max(0,1-Math.abs(y-200)/14);
+    for(let x=0;x<W;x++) px(x,y,MIST2,a);
+  }
+
+  /* ============ 4. 左：白粉墙 + 瓦压顶 ============ */
+  const wallTop=136, wallBot=240, wallRight=204;
+  const capY=128;                                   // 压顶瓦脊线
+  for(let x=-2;x<=wallRight+2;x++){
+    const m=((x%4)+4)%4;
+    px(x,capY-1,TILL,0.75);                          // 脊上高光
+    px(x,capY,(m===0)?TIL2:TIL1);
+    px(x,capY+1,(m===2)?TIL0:TIL1);
+    px(x,capY+2,(m===2)?TIL0:((m===0)?TIL2:TIL1));
+    if(((x%8)+8)%8===0){ px(x,capY+1,TILL,0.3); px(x,capY+2,TILL,0.22); }
+    px(x,capY+3,TIL0);
+    px(x,capY+4,(m===1)?TIL1:TIL0);
+    px(x,capY+5,'#2E333B');                          // 檐口阴影
+    if(((x%4)+4)%4===0) px(x,capY+6,'#2E333B',0.6); // 滴水
+  }
+  for(let y=wallTop;y<wallBot;y++){                 // 墙体
+    const t=(y-wallTop)/(wallBot-wallTop);
+    for(let x=0;x<=wallRight;x++){
+      const th=(BAY[((y&3)<<2)+(x&3)]+0.5)/16;
+      px(x,y,th<t*0.5?WALL2:WALL);
+    }
+  }
+  for(let y=wallTop+3;y<wallBot;y+=13) hl(0,y,wallRight+1,WALLD,0.15);
+  for(let i=0;i<44;i++){
+    const y=wallTop+3+13*Math.floor(rnd()*7), x=Math.round(rnd()*wallRight);
+    px(x,y,WALLD,0.13); px(x,y+1,WALLD,0.09);
+  }
+  for(let x=0;x<=wallRight;x++){
+    px(x,wallTop,'#8E8A7C'); px(x,wallTop+1,WALLD,0.5); px(x,wallTop+2,WALLD,0.25);
+    if(((x%9)+9)%9===0) vl(x,wallTop+1,2+((x*5)%4),WALLD,0.22);
+  }
+  for(let i=0;i<30;i++){
+    const bx=rnd()*wallRight, by=wallTop+6+rnd()*30, len=2+Math.round(rnd()*5), dir=rnd()<0.5?-1:1;
+    for(let k=0;k<len;k++) px(bx+dir*k,by+k*0.5,'#A5A392',0.18);
+    px(bx,by+1,'#A5A392',0.12);
+  }
+  for(let i=0;i<58;i++){
+    const x=Math.round(rnd()*wallRight), y=wallBot-2-Math.round(rnd()*rnd()*24), len=2+Math.round(rnd()*8);
+    for(let k=0;k<len;k++) px(x,y-k,rnd()<0.5?WALLD:BAMD,0.28);
+  }
+  for(let x=0;x<=wallRight+1;x++){                  // 墙脚石（两级）
+    const c=(((x%21)+21)%21===0)?ST3:ST2;
+    px(x,wallBot,c); px(x,wallBot+1,c);
+    px(x,wallBot+2,ST3,0.92);
+    px(x,wallBot+3,(x%9===0)?ST3:ST2,0.6);
+  }
+  hl(0,wallBot-1,wallRight+2,ST1,0.5);
+  vl(wallRight+1,capY+2,wallBot-capY-2,TIL0);
+  vl(wallRight+2,capY+4,wallBot-capY-4,ST2);
+
+  /* ============ 5. 月洞门 ============ */
+  const gx=98, gy=196, gr=44, gIn=gr-4.4;
+  for(let j=-gIn;j<=gIn;j++) for(let i=-gIn;i<=gIn;i++){
+    const q=Math.sqrt(i*i+j*j); if(q>gIn) continue;
+    const x=gx+i, y=gy+j, t=(j+gIn)/(2*gIn);
+    const th=(BAY[((y&3)<<2)+(x&3)]+0.5)/16;
+    px(x,y,(t<0.30)?(th<t*1.4?'#AFBAB6':'#B7C1BC'):(t<0.72?'#C0CAC5':'#C8D1CB'));
+  }
+  for(let x=gx-30;x<gx+18;x++){                     // 门内小瓦顶
+    const m=((x%4)+4)%4, yy=gy-gIn+9+((x>gx-10&&x<gx+4)?1:3);
+    px(x,yy,TIL0); px(x,yy+1,(m===0||m===3)?TIL1:TIL0); px(x,yy+2,TIL0,0.95);
+    px(x,yy+3,'#2E333B',0.7);
+    if(((x%6)+6)%6===0) px(x,yy-1,TILL,0.28);
+  }
+  for(let i=0;i<4;i++){                             // 门内竹
+    const bx=gx-28+Math.round(rnd()*54), top=gy-gIn+12+Math.round(rnd()*14);
+    for(let y=top;y<gy+18;y++) px(bx+Math.round((y-top)*0.06),y,'#8FAC87', y<gy?0.6:0.85);
+    for(let k=0;k<6;k++){ const ly=top+Math.round(rnd()*30), d=rnd()<0.5?-1:1, l=2+Math.round(rnd()*3);
+      for(let q2=0;q2<l;q2++) px(bx+d*q2,ly-q2,'#9BB393',0.55); }
+  }
+  for(let y=gy+8;y<gy+gIn;y++){                     // 门内石径
+    const t=(y-(gy+8))/(gIn-8);
+    for(let x=gx-gIn;x<=gx+gIn;x++){
+      const dx=x-gx; if(Math.abs(dx)>Math.sqrt(Math.max(0,gIn*gIn-(y-gy)*(y-gy)))) continue;
+      if(Math.abs(dx)<8+30*t){ px(x,y,t<0.5?ST1:ST0,0.9); if(((x+y*2)%13+13)%13===0) px(x,y,ST2,0.6); }
+    }
+  }
+  ring(gx,gy,gr,1.2,'#2E333B',1);                   // 门圈
+  ring(gx,gy,gr-1.6,2.8,ST1,0.95);
+  ring(gx,gy,gr-4.2,1.1,ST2,0.95);
+  for(let a=196;a<340;a+=1){
+    const rad=a*Math.PI/180;
+    px(gx+Math.cos(rad)*(gr-3),gy+Math.sin(rad)*(gr-3),'#E9E5D6',0.7);
+  }
+  for(let a=20;a<160;a+=1){
+    const rad=a*Math.PI/180;
+    px(gx+Math.cos(rad)*(gr-3),gy+Math.sin(rad)*(gr-3),ST2,0.45);
+  }
+
+  /* ============ 6. 右侧：曲廊（透视后退） ============ */
+  const bWallL=R-198, bWallR=R+6, bTop=153, bBot=244;
+  const winW=94, winH=52, winCx=R-124, winCy=204;
+  const colX=[R-276,R-260,R-243,R-224,R-207], N=colX.length;
+  const beamY=(x)=>Math.round(147-11*((x-(R-292))/94));
+  const colTop=(x)=>beamY(x)+2;
+  const colBot=(x)=>236+Math.round(8*((x-(R-276))/69));
+  // 廊顶瓦檐（与柱头同斜率）
+  for(let x=R-292;x<=R-198;x++){
+    const yy=beamY(x)-12, m=((x%4)+4)%4;
+    px(x,yy-1,TILL,0.5);
+    px(x,yy,(m===0)?TIL2:TIL1); px(x,yy+1,(m===2)?TIL0:TIL1);
+    if(((x%9)+9)%9===0) px(x,yy,TILL,0.4);
+    px(x,yy+2,TIL0); px(x,yy+3,'#2E333B');
+    if(((x%10)+10)%10===0) px(x,yy+4,'#2E333B',0.6);
+  }
+  // 廊梁
+  for(let x=R-292;x<=R-198;x++){
+    const yy=beamY(x);
+    px(x,yy,WOODD); px(x,yy+1,WOOD); px(x,yy+2,WOODD,0.9);
+  }
+  // 柱 + 柱础 + 雀替
+  for(let i=0;i<N;i++){
+    const x=colX[i], n=(x-(R-276))/69, w=(n>0.45)?2:1;
+    const top=colTop(x), bot=colBot(x);
+    for(let y=top;y<bot;y++){ px(x-1,y,'#8A7364'); px(x,y,WOOD); if(w>1) px(x+1,y,WOODD); }
+    el(x+(w-1)/2,bot,3.2+n*1.4,2.2,ST0,0.98); el(x+(w-1)/2,bot-1.2,2.2+n,1.4,ST1,0.95);
+    px(x-2,top+1,WOODL,0.9); px(x-2,top+2,WOOD,0.7); px(x+w,top+1,WOODL,0.9); px(x+w,top+2,WOOD,0.7);
+    px(x-2,top,'#2E333B',0.5); px(x+w,top,'#2E333B',0.5);
+  }
+  // 栏板（随透视）
+  for(let x=R-280;x<R-200;x++){
+    const yb=colBot(x);
+    px(x,yb-20,ST1); px(x,yb-19,ST2); px(x,yb-10,'#9A978C');
+  }
+  for(let i=0;i<N;i++){ const x=colX[i], yb=colBot(x);
+    vl(x,yb-20,11,ST0); px(x,yb-21,ST1); }
+
+  /* ============ 6b. 白墙 + 漏窗 ============ */
+  for(let y=bTop;y<bBot;y++){
+    const t=(y-bTop)/(bBot-bTop);
+    for(let x=bWallL;x<=bWallR;x++){ const th=dth(x,y); px(x,y,th<0.10+t*0.42?WALL2:WALL); }
+  }
+  for(let y=bTop+4;y<bBot;y+=14) for(let x=bWallL;x<=bWallR;x++) px(x,y,WALLD,0.12);
+  // 漏窗：菱花格（透绿 + 石框）
+  const wx=winCx-winW/2, wy=winCy-winH/2;
+  for(let y=wy;y<wy+winH;y++) for(let x=wx;x<wx+winW;x++){
+    const t=(y-wy)/winH, th=dth(x,y);
+    px(x,y,t<0.5?(th<t*0.9?'#A7C09A':'#9DB894'):(th<(t-0.5)*0.9?'#8AA585':'#7E9779'));
+  }
+  for(let y=wy;y<wy+winH;y++) for(let x=wx;x<wx+winW;x++){
+    const u=x-wx, v=y-wy;
+    if(((u+v)%9<1)||(((u-v+9000)%9)<1)){ px(x,y,'#CFC9B7',0.95); px(x,y+1,'#8E8B80',0.3); }
+  }
+  for(let y=wy-2;y<wy+winH+2;y++) for(let x=wx-2;x<wx+winW+2;x++){
+    const e=Math.min(x-wx,y-wy,wx+winW-1-x,wy+winH-1-y);
+    if(e>=0||x<wx-2||x>wx+winW+1||y<wy-2||y>wy+winH+1) continue;
+    const c=(x-wx<=0||y-wy<=0)?'#DDD7C5':((x-wx>=winW-1||y-wy>=winH-1)?'#9C9889':'#C6C1B1');
+    px(x,y,c,0.95);
+  }
+  for(let x=wx-2;x<wx+winW+2;x++){ px(x,wy-2,'#E4E0D0',0.5); px(x,wy+winH+1,'#8E8B80',0.55); }
+  for(let y=wy-2;y<wy+winH+2;y++){ px(wx-2,y,'#E4E0D0',0.5); px(wx+winW+1,y,'#8E8B80',0.55); }
+  for(let x=bWallL;x<=bWallR;x++){                  // 墙脚石
+    const c=(((x%21)+21)%21===0)?ST3:ST2;
+    px(x,bBot,c); px(x,bBot+1,c); px(x,bBot+2,ST3,0.9);
+  }
+  hl(bWallL,bBot-1,bWallR-bWallL+1,ST1,0.45);
+
+  /* ============ 7. 主屋面：飞檐翘角 · 瓦垄逐片 ============ */
+  const ridgeY=58, eaveY=142, ridgeL=R-148;
+  const hipP=[[ridgeL,ridgeY],[R-172,112],[R-244,124]];      // 垂脊
+  const eavP=[[R-244,124],[R-236,140],[R-204,eaveY]];        // 檐线（翘角→檐口）
+  const quad=(P,t)=>{ const u=1-t;
+    return [u*u*P[0][0]+2*u*t*P[1][0]+t*t*P[2][0], u*u*P[0][1]+2*u*t*P[1][1]+t*t*P[2][1]]; };
+  const lut=(P)=>{ const m={}; for(let i=0;i<=260;i++){ const t=i/260, q=quad(P,t), y=Math.round(q[1]);
+    if(m[y]===undefined||q[0]<m[y]) m[y]=q[0]; } return m; };
+  const hipY=lut(hipP), eavY=lut(eavP);
+  const leftX=(y)=>{ let x=null;
+    if(hipY[y]!==undefined) x=hipY[y];
+    if(eavY[y]!==undefined) x=(x===null?eavY[y]:Math.min(x,eavY[y]));
+    return x; };
+  // 7.1 屋面底色：三段抖动着色（近脊透天光，檐下压暗）
+  for(let y=ridgeY;y<=eaveY;y++){
+    const xl=leftX(y); if(xl===null) continue;
+    const t=(y-ridgeY)/(eaveY-ridgeY);
+    for(let x=Math.round(xl);x<R+6;x++){
+      const th=dth(x,y);
+      let c=TIL1;
+      if(t<0.30) c=(th<0.62-1.2*t)?TIL2:TIL1;
+      else if(t>0.78) c=(th<0.62)?TIL0:TIL1;
+      // 近脊化雾：往浅瓦调（比纯白雾更像"雾中的瓦"）
+      const hz=Math.max(0,1-t/0.34);
+      if(hz>0){ const a=0.55*hz; if(dth(x+7,y+3)<a) c=(c===TIL2?'#8A929E':'#767F8C'); }
+      if(t>0.62&&t<0.70&&((y%3)===0)) { const a=0.18; if(dth(x+11,y)<a) c='#6E7784'; }
+      px(x,y,c);
+    }
+  }
+  // 7.2 瓦垄：自檐口向脊微张的 1px 垄线（左highlight、右channel）
+  for(let xe=R-246;xe<R+8;xe+=4){
+    const lean=(xe-(R-150))*0.085;
+    for(let y=ridgeY;y<=eaveY;y++){
+      const t=(y-ridgeY)/(eaveY-ridgeY);
+      const x=Math.round(xe+lean*(1-t));
+      const xl=leftX(y); if(xl===null||x<xl) continue;
+      px(x-1,y,TIL2,0.55);
+      px(x,y,TIL0,0.85);
+    }
+  }
+  // 7.3 瓦垄横缝
+  for(let y=ridgeY+5;y<eaveY;y+=9) for(let x=Math.round(leftX(y)||0);x<R+6;x++){
+    px(x,y,TILL,0.16); px(x,y+1,'#2E333B',0.07);
+  }
+  // 7.4 垂脊（左缘）：暗边 + 高光
+  for(let y=ridgeY;y<=eaveY;y++){
+    const xl=leftX(y); if(xl===null) continue;
+    px(xl-1,y,TIL1,0.5); px(xl,y,TIL0,0.95); px(xl+1,y,TIL1,0.75);
+    if(y<120) px(xl+2,y,TILL,0.28);
+  }
+  // 7.5 正脊（含脊端小兽）
+  hl(ridgeL-4,ridgeY-3,R+10-ridgeL,TIL0,0.95);
+  hl(ridgeL-4,ridgeY-2,R+10-ridgeL,TIL1,0.9);
+  hl(ridgeL-4,ridgeY-1,R+10-ridgeL,TILL,0.45);
+  disc(ridgeL-4,ridgeY-2,2.6,TIL1,0.95); disc(ridgeL-4,ridgeY-3,1.2,TILL,0.45);
+  // 7.6 檐口：瓦当逐片 → 檐板阴影 → 滴水
+  for(let x=R-206;x<R+8;x++){
+    const m=((x%8)+8)%8;
+    if(m===0||m===1){ px(x,eaveY,'#6E7784'); px(x,eaveY+1,TIL1); }
+    else if(m===6||m===7){ px(x,eaveY,TIL0); px(x,eaveY+1,TIL0); }
+    else { px(x,eaveY,TIL1); px(x,eaveY+1,TIL0); }
+    px(x,eaveY+2,'#333A44');
+    px(x,eaveY+3,'#2A3038');
+    px(x,eaveY+4,'#262B33');
+    px(x,eaveY+5,'#262B33');
+    if(m===4){ px(x,eaveY+5,'#2E333B'); px(x,eaveY+6,'#2E333B',0.6); }   // 滴水
+  }
+  hl(R-206,eaveY-1,R+8-(R-206),TILL,0.35);
+  // 7.7 翘角：角梁曲线 + 起翘尖
+  for(let i=0;i<=130;i++){
+    const t=i/130, q=quad(eavP,t), x=Math.round(q[0]), y=Math.round(q[1]);
+    px(x,y,TIL1,0.92); px(x,y+1,TIL0,0.92); px(x,y+2,'#2E333B',0.4);
+    if(i%10===0) px(x-1,y,TILL,0.28);
+    if(t>0.7) px(x-1,y-1,TIL2,0.5);
+  }
+  const tipq=quad(eavP,1.0);
+  for(let k=0;k<4;k++) px(tipq[0]-1-k*0.6,tipq[1]-1-k*0.9,TIL1,0.9);
+  for(let k=0;k<3;k++) px(tipq[0]-1-k*0.6,tipq[1]-k*0.9,'#2E333B',0.35);
+  // 7.8 额枋（木梁）+ 挂落
+  for(let x=bWallL;x<=bWallR;x++){
+    px(x,148,WOODL,0.55); px(x,149,WOOD); px(x,150,WOODD); px(x,151,WOODD,0.85);
+    px(x,152,'#2E333B',0.35);
+    if(((x%6)+6)%6===0){ vl(x,152,9,WOODD); px(x+1,152,WOOD,0.75); }
+  }
+
+  /* ============ 8. 柳枝（自上方垂落） ============ */
+  const WIL0='#A9C29B', WIL1='#BED2AB', WILD='#7E9C74';
+  const leafOn=(x,y,c)=>{ px(x,y,c); px(x+1,y,c,0.6); px(x-1,y-1,c,0.5); };
+  const strand=(x0,y0,len,c)=>{
+    let x=x0;
+    for(let i=0;i<len;i++){
+      const sw=Math.sin(i*0.19+x0*0.2);
+      x+=sw>0.35?1:(sw<-0.55?-1:0);
+      const y=y0+i;
+      px(x,y,c);
+      if(i%4===0) px(x+1,y,c,0.45);
+      if(i%3===1){ const d=(i%6===1)?-1:1;
+        px(x+d,y+1,WIL1,0.9); px(x+2*d,y+2,c,0.85); px(x+d,y+2,WIL1,0.6); }
+    }
+  };
+  const willow=(x0,dir,spread,lenMin,lenMax,n)=>{
+    const bx=x0+dir*spread;
+    for(let i=0;i<=40;i++){                          // 主枝（自顶边斜下，2px）
+      const t=i/40, x=Math.round(x0+(bx-x0)*(1-Math.pow(1-t,1.7))), y=Math.round(2+t*44);
+      px(x,y,WILD); px(x+1,y,WILD,0.55); px(x,y+1,WILD,0.3);
+      if(i%6===0){ const d=(i%12===0)?-1:1; leafOn(x+d,y+2,WIL0); leafOn(x-d,y-3,WIL0); }
+    }
+    for(let i=0;i<=n;i++){
+      const t=i/n;
+      strand(Math.round(x0+dir*spread*t*0.94+(rnd()-0.5)*3), 40+Math.round(rnd()*8),
+             Math.round(lenMin+rnd()*(lenMax-lenMin)), i%3?WIL0:WIL1);
+    }
+    for(let k=0;k<14;k++){ const t=rnd(); leafOn(Math.round(x0+(bx-x0)*(1-Math.pow(1-t,1.7))),Math.round(4+42*t),WIL1); }
+  };
+  willow(92,-1,54,34,92,8);      // 左：柳枝自左上垂落
+  willow(R-128,1,44,28,74,7);    // 右：柳枝自右上垂落
+
+  /* ============ 9. 水面、倒影、涟漪 ============ */
+  for(let x=0;x<W;x++){                                  // 远岸石岸线（实心，一直填到水线）
+    const yy=WATER-2-(((x*7)%3)===0?1:0)-((x*13)%5===0?1:0);
+    px(x,yy-2,ST1,0.5); px(x,yy-1,ST2); px(x,yy,ST3); px(x,yy+1,ST3,0.85);
+    if(((x%9)+9)%9===0) px(x,yy-3,ST1,0.35);
+    px(x,244,ST3,0.95); px(x,245,'#7A776F');
+  }
+  grad(0,WATER,W,H-WATER,WAT,WAT2);
+  // 倒影（镜像 + 抖动衰减 + 波纹位移）
+  for(let y=WATER;y<H;y++){
+    const dep=y-WATER;
+    const fade=Math.max(0,1-dep/78)*0.74;
+    if(fade<=0) break;
+    const dx=Math.round(Math.sin(dep*0.36)*1.7);
+    const mix=Math.min(0.42,dep/150);
+    for(let x=0;x<W;x++){
+      const sy=WATER-dep; if(sy<0) break;
+      const sx=x+dx; if(sx<0||sx>=W) continue;
+      const th=(BAY[((y&3)<<2)+(x&3)]+0.5)/16;
+      if(th>fade) continue;
+      const si=(sy*W+sx)<<2, di=(y*W+x)<<2;
+      px(x,y,'#'+[0,1,2].map(k=>Math.round(d[si+k]*(1-mix)+[170,187,186][k]*mix).toString(16).padStart(2,'0')).join(''));
+    }
+  }
+  // 涟漪
+  for(let i=0;i<220;i++){
+    const y=WATER+1+Math.round(rnd()*(H-WATER-2)), x=Math.round(rnd()*W), w2=2+Math.round(rnd()*11);
+    hl(x,y,w2,rnd()<0.55?WATL:WATD,0.2+rnd()*0.3);
+  }
+  for(let i=0;i<26;i++){
+    const y=WATER+2+Math.round(rnd()*(H-WATER-4)), x=Math.round(rnd()*W);
+    for(let k=0;k<7;k++) { px(x-k*1,y-k*0.3,WATL,0.35); px(x+k*1,y-k*0.3,WATL,0.35); }
+  }
+
+  /* ============ 10. 荷叶、荷花、芦苇 ============ */
+  const lotus=(cx,cy,r,open)=>{
+    for(let j=-r;j<=r;j++) for(let i=-r;i<=r;i++){
+      const q=Math.sqrt(i*i+(j*1.85)*(j*1.85));
+      if(q>r) continue;
+      const ang=Math.atan2(j*1.85,i);
+      if(open&&r>3&&Math.abs(ang-1.0)<0.22) continue;
+      const c=(i*j>2)?LOTD:(q<r*0.5?LOTH:LOT);
+      px(cx+i,cy+j,c,(q>r-0.9)?0.85:1);
+    }
+    if(r>3){
+      for(let k=1;k<r;k++){ px(cx+k*0.75,cy-r*0.2+k*0.16,LOTD,0.16); px(cx-k*0.75,cy-r*0.2+k*0.16,LOTD,0.12); }
+      for(let k=1;k<r;k+=2) px(cx,cy-r*0.3+k*0.4,LOTD,0.15);
+    }
+  };
+  const spots=[];
+  for(let i=0;i<58;i++) spots.push([Math.round(rnd()*W),WATER+8+Math.round(rnd()*(H-WATER-14))]);
+  spots.sort((a,b)=>a[1]-b[1]);
+  for(const [x,y] of spots){
+    const t=(y-WATER)/(H-WATER);
+    const r=3+Math.round(rnd()*4+t*5);
+    lotus(x,y,r,true);
+    if(rnd()<0.16){
+      px(x,y-r,'#D8C6C4',0.9); px(x+1,y-r,'#C7A6A6',0.95); px(x-1,y-r-1,'#E2D5D0',0.8);
+      px(x+2,y-r+1,'#C7A6A6',0.7); px(x-2,y-r+1,'#C7A6A6',0.6);
+    }
+  }
+  const step=(cx,cy,rx)=>{                              // 汀步石
+    el(cx,cy,rx,Math.max(2,Math.round(rx*0.42)),ST2,0.95);
+    el(cx,cy-rx*0.2,rx*0.88,Math.max(1,Math.round(rx*0.30)),ST0,0.9);
+    hl(cx-rx*0.6,cy-rx*0.42,rx*1.2,ST1,0.5);
+    hl(cx-Math.round(rx*0.7),cy+Math.round(rx*0.45),Math.round(rx*1.4),ST3,0.35);
+  };
+  step(58,300,11); step(104,308,9); step(150,316,8); step(196,324,7);
+  step(586,302,10); step(548,310,8); step(510,318,7);
+  for(let i=0;i<18;i++){                                  // 芦苇（左右两侧）
+    const left=rnd()<0.5, x=Math.round(left?rnd()*76:W-rnd()*76);
+    const h=16+Math.round(rnd()*26), dir=left?-1:1;
+    ln(x,WATER+3+Math.round(rnd()*7),x+dir*4,WATER+3-h,BAM2,0.75);
+    for(let k=0;k<3;k++){ const yy=WATER+3-h+k*4; ln(x+dir*3*k,yy,x+dir*(5+k*2),yy-3,rnd()<0.5?BAM1:BAM0,0.65); }
+  }
+
+
+  /* ============ 12. 中景：太湖石与石桥 ============ */
+  const rock=(cx,base,h,w0,tone)=>{
+    for(let y=0;y<h;y++){
+      const t=y/h;
+      let wl=Math.round(w0*(0.30+0.70*Math.sin(Math.PI*Math.min(1,t*1.14)))*(0.72+0.28*Math.sin(y*0.42+cx)));
+      if(wl<1) wl=1;
+      const lx=Math.round(cx-wl+2.2*Math.sin(y*0.27));
+      for(let i=0;i<wl*2;i++){
+        const x=lx+i, frac=i/(wl*2);
+        const hole=(Math.sin(x*0.63+y*0.41)>0.70)||(Math.sin(x*0.19-y*0.57)>0.88);
+        if(hole&&t>0.16&&t<0.90) continue;
+        let c=(frac<0.22)?ST1:((frac>0.74)?ST3:ST2);
+        if(t<0.10) c=ST0;
+        px(x,base-h+y,c);
+        if(frac<0.10) px(x,base-h+y,ST1,0.85);
+        if(frac>0.92) px(x,base-h+y,ST3,0.8);
+      }
+    }
+    const top=base-h;
+    for(let x=cx-w0;x<=cx+w0;x++){
+      if(Math.abs(x-cx)>w0*0.55) continue;
+      px(x,top+1+Math.round(1.6*Math.sin((x-cx)*0.7)),ST1,0.45);
+    }
+    for(let y=base-h;y<base;y++) for(let i=0;i<3;i++){
+      const x=cx-w0+Math.round(2+7*rnd());
+      px(x,y,ST2,0.16);
+    }
+  };
+  (function(){                                   // 太湖石贴墙投影
+    for(let y=178;y<246;y++) for(let x=26;x<58;x++){
+      const w2=Math.round(16*(0.30+0.70*Math.sin(Math.PI*Math.min(1,((y-184)/62)*1.14))));
+      if(x>32-w2+2*w2){ for(let k=0;k<6;k++) px(x+k,y,'#A9A693',0.20-k*0.03); }
+    }
+  })();
+  rock(32,246,62,21);
+  rock(C-150,244,72,27);
+  rock(C+156,244,50,18);
+
+  const bridge=(cx,span,rise,archW,archH)=>{
+    const y0=WATER-2;
+    const topY=(x)=>{ const t=(x-cx)/span; return Math.round(y0-rise*(1-t*t)-4); };
+    for(let x=Math.round(cx-span);x<=Math.round(cx+span);x++){
+      const ty=topY(x), body=6;
+      for(let y=ty;y<ty+body;y++){
+        const t2=(y-ty)/(body);
+        px(x,y,t2<0.45?ST1:(t2<0.8?ST0:ST3));
+      }
+      hl(x,ty,1,ST1,0.9);
+      const dx=x-cx;
+      let inArch=false;
+      if(Math.abs(dx)<archW){
+        const aTop=WATER-Math.round(archH*Math.sqrt(Math.max(0,1-(dx*dx)/(archW*archW))));
+        if(ty+body>aTop) inArch=true;
+      }
+      for(let y=ty+body;y<WATER;y++) px(x,y,inArch?WAT2:ST2,inArch?0.95:0.85);
+      if(!inArch&&Math.abs(dx)<span-4&&((x-cx)%9===0)){ vl(x,ty-5,5,ST2,0.95); px(x,ty-6,ST1,0.7); }
+    }
+    for(let x=Math.round(cx-span+1);x<=Math.round(cx+span-1);x++){
+      const tx=x-cx;
+      px(x,topY(x)-5,ST1,0.85); px(x,topY(x)-4,ST0,0.7);
+    }
+    for(let x=Math.round(cx-span);x<=Math.round(cx+span);x+=9){
+      px(x,topY(x)-5,ST2,0.9); px(x,topY(x)-8,ST1,0.7);
+    }
+  };
+  bridge(C+8,62,12,24,16);
+
+  /* ============ 11. 薄雾（分层收束） ============ */
+  for(let y=WATER-6;y<WATER+12;y++){
+    const a=0.36*Math.max(0,1-Math.abs(y-(WATER+1))/11);
+    for(let x=0;x<W;x++) px(x,y,MIST,a);
+  }
+  for(let y=286;y<H;y++){
+    const a=0.30*Math.min(1,(y-286)/34);
+    for(let x=0;x<W;x++) px(x,y,MIST,a);
+  }
+}
+
+/* 背景画布：按视口宽高比生成（逻辑像素 360 高，宽度 560~1200 自适应） */
+function drawGarden(){
+  const H=360;
+  const vw=window.innerWidth||1280, vh=window.innerHeight||720;
+  const W=Math.max(560,Math.min(1200,Math.round(H*vw/Math.max(1,vh))));
+  let cv=$('bg').firstElementChild;
+  if(!cv||cv.tagName!=='CANVAS'){ $('bg').innerHTML=''; cv=document.createElement('canvas'); $('bg').appendChild(cv); }
+  if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; }
+  const ctx=cv.getContext('2d');
+  const img=ctx.createImageData(W,H);
+  paintGarden(img.data,W,H);
+  ctx.putImageData(img,0,0);
+}
+let bgTimer=0;
+addEventListener('resize',()=>{ clearTimeout(bgTimer); bgTimer=setTimeout(drawGarden,220); });
+function drawBoard(){
+  let s='';
+  for(let r=0;r<ROWS;r++) s+=`<line class="bl" x1="${X(0)}" y1="${Y(r)}" x2="${X(8)}" y2="${Y(r)}"/>`;
+  for(let c=0;c<COLS;c++){
+    if(c===0||c===8) s+=`<line class="bl thick" x1="${X(c)}" y1="${Y(0)}" x2="${X(c)}" y2="${Y(9)}"/>`;
+    else s+=`<line class="bl" x1="${X(c)}" y1="${Y(0)}" x2="${X(c)}" y2="${Y(4)}"/><line class="bl" x1="${X(c)}" y1="${Y(5)}" x2="${X(c)}" y2="${Y(9)}"/>`;
+  }
+  s+=`<line class="bl" x1="${X(3)}" y1="${Y(0)}" x2="${X(5)}" y2="${Y(2)}"/><line class="bl" x1="${X(5)}" y1="${Y(0)}" x2="${X(3)}" y2="${Y(2)}"/>`;
+  s+=`<line class="bl" x1="${X(3)}" y1="${Y(7)}" x2="${X(5)}" y2="${Y(9)}"/><line class="bl" x1="${X(5)}" y1="${Y(7)}" x2="${X(3)}" y2="${Y(9)}"/>`;
+  const ry=(Y(4)+Y(5))/2+9;
+  // 河道文字位置固定（同实盘印刷），不随视角翻转，始终正着读
+  const rx0=PAD+1.35*STEP, rx1=PAD+6.65*STEP;
+  s+=`<text class="river" x="${rx0}" y="${ry}">楚 河</text>`;
+  s+=`<text class="river" x="${rx1}" y="${ry}" text-anchor="end">漢 界</text>`;
+  $('gBoard').innerHTML=s;
+}
+
+function isMine(r,c){                       // 联机时只看自己的可动光晕
+  const p=S.board[r][c];
+  if(!p||!S.bottomColor) return false;
+  if(p.hidden) return halfOf(r)===NET.side;
+  return p.color===S.seatColor;
+}
+function renderPieces(){
+  let s='';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const p=S.board[r][c];
+    if(!p) continue;
+    const x=X(c), y=Y(r);
+    // 单机（同屏对坐）：上半场的子朝向对面玩家——文字旋转 180°；下半场朝屏幕外的玩家
+    const rot=(MODE==='local'&&(p.hidden?halfOf(r)==='top':p.color===S.topColor))?` transform="rotate(180 ${x} ${y})"`:'';
+    const op=operableAt(r,c)&&(MODE==='local'||isMine(r,c));
+    const sel=S.sel&&S.sel.r===r&&S.sel.c===c;
+    let cls='pc '+(p.hidden?'hidden':(p.color===RED?'red':'black'));
+    if(op) cls+=' op';
+    if(sel) cls+=' sel';
+    if(S.landed&&S.landed.r===r&&S.landed.c===c) cls+=' landed';
+    s+=`<g class="${cls}" data-r="${r}" data-c="${c}">`;
+    if(op) s+=`<circle class="opring" cx="${x}" cy="${y}" r="${RAD+6}"/>`;
+    s+=`<circle class="disc" cx="${x}" cy="${y}" r="${RAD}"/>`;
+    if(p.hidden){
+      const b=BASE[r][c];
+      s+=`<circle class="hring" cx="${x}" cy="${y}" r="${RAD-7}"/>`;
+      s+=`<text class="poschar" x="${x}" y="${y+RAD-9}"${rot}>${NAMES[b.color][b.type]}</text>`;
+    }else{
+      s+=`<text class="glyph" x="${x}" y="${y}"${rot}>${NAMES[p.color][p.type]}</text>`;
+    }
+    s+=`</g>`;
+  }
+  $('gPieces').innerHTML=s;
+  S.landed=null;
+}
+
+function renderMarks(){
+  let s='';
+  const p=(MODE==='online')?NET.proposal:null;
+  if(p&&p.kind==='move'&&p.fr!==undefined&&p.tr!==undefined){   // 待表决的走法：画在棋盘上
+    const col=memberColor(p.by);
+    const x1=X(p.fc), y1=Y(p.fr), x2=X(p.tc), y2=Y(p.tr);
+    const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L;
+    const tipx=x2-ux*(RAD+5), tipy=y2-uy*(RAD+5);          // 箭头尖：贴在终点圈上
+    const bax=tipx-ux*15, bay=tipy-uy*15;                  // 箭头底
+    const sx=x1+ux*(RAD+3), sy=y1+uy*(RAD+3);              // 线起点：贴着起点圈
+    const proj=(bax-sx)*ux+(bay-sy)*uy;                    // 沿线还有多少余量
+    if(proj>3) s+=`<line class="prop-line" x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${bax.toFixed(1)}" y2="${bay.toFixed(1)}" stroke="${esc(col)}"/>`;
+    s+=`<path class="prop-head" d="M${tipx.toFixed(1)} ${tipy.toFixed(1)}`+
+       `L${(bax-uy*7).toFixed(1)} ${(bay+ux*7).toFixed(1)}L${(bax+uy*7).toFixed(1)} ${(bay-ux*7).toFixed(1)}Z" fill="${esc(col)}"/>`;
+    s+=`<circle class="prop-src" cx="${x1}" cy="${y1}" r="${RAD+4}" stroke="${esc(col)}"/>`;
+    s+=`<circle class="prop-dst" cx="${x2}" cy="${y2}" r="${RAD+3}" stroke="${esc(col)}"/>`;
+  }
+  if(S.sel&&S.moves){
+    for(const[tr,tc]of S.moves){
+      const x=X(tc), y=Y(tr), t=S.board[tr][tc];
+      if(!t) s+=`<circle class="mk" data-r="${tr}" data-c="${tc}" cx="${x}" cy="${y}" r="13"/>`;
+      else if(operableAt(tr,tc)) s+=`<circle class="mkring" data-r="${tr}" data-c="${tc}" cx="${x}" cy="${y}" r="${RAD+7}"/>`;
+      else s+=`<circle class="mkcap" data-r="${tr}" data-c="${tc}" cx="${x}" cy="${y}" r="${RAD+4}"/>`;
+    }
+  }
+  $('gMarks').innerHTML=s;
+}
+
+function renderInfo(){
+  const hiddenIn=half=>{
+    let n=0;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const p=S.board[r][c]; if(p&&p.hidden&&halfOf(r)===half) n++;}
+    return n;
+  };
+  const st=$('status');
+  if(MODE==='online'){
+    let msg;
+    const c=NET.counts;
+    const sideInfo=c?`下方 ${c.bottom.online} 人 · 上方 ${c.top.online} 人`:'';
+    if(!NET.ws||NET.ws.readyState!==1) msg='联机：未连接';
+    else if(S.over) msg=S.resultText;
+    else if(!S.bottomColor){
+      const cb=NET.counts?NET.counts.bottom.total:0, ct=NET.counts?NET.counts.top.total:0;
+      const tip=cb&&ct?'选边后点「开始对局」，双方都同意即开局':'等两个半场都有人（把房间码或邀请链接发给对方）';
+      msg=`房间 ${NET.room} · 未开局 · `+(NET.last?('上一局：'+NET.last.text+' · '):'')+tip;
+    }
+    else msg=`房间 ${NET.room} · 你在${sideName(NET.side)}（执${colorName(S.seatColor)}） · ${S.turn===S.seatColor?'轮到你这边走':'等对方走'}`;
+    if(sideInfo) msg+=' · '+sideInfo;
+    if(NET.proposal) msg+=' · 表决中：'+({move:'走子',draw:'和棋',reset:'回选边',rematch:'回选边',start:'开局'}[NET.proposal.kind]||'');
+    if(NET.markOn&&NET.phrase) msg+=' · 标点：'+NET.phrase;
+    if(NET.toast) msg+=' · '+NET.toast;
+    st.textContent=msg;
+    renderRoster(); renderProposal(); syncMarkUI(); syncSideUI();
+    const cb=NET.counts?NET.counts.bottom.total:0, ct=NET.counts?NET.counts.top.total:0;
+    const lobby=(MODE==='online'&&!!NET.room&&!S.bottomColor);
+    $('startRow').hidden=!lobby;
+    if(lobby){
+      $('btnStart').disabled=!(cb&&ct)||!!NET.proposal;
+      $('startHint').textContent=(cb&&ct)
+        ? (NET.proposal?'正在表决中…':'点「开始对局」，双方都同意即开局')
+        : `还要等${cb?'上方':'下方'}来人`;
+    }
+  }else if(S.over){ st.textContent=S.resultText; }
+  else{
+    let msg=`轮到 ${colorName(S.turn)}（${slotOfColor(S.turn)==='bottom'?'下方':'上方'}）`;
+    if(S.sel){
+      const p=S.board[S.sel.r][S.sel.c];
+      if(p.hidden){
+        const b=BASE[S.sel.r][S.sel.c];
+        msg+=` · 已选暗子（该格原为「${NAMES[b.color][b.type]}」位）：首手按它的走法`;
+        if(b.type==='P') msg+='，兵/卒 暗时向前一步（翻开后朝对手方向）';
+      }else msg+=` · 已选 ${NAMES[p.color][p.type]}`;
+    }else msg+=` · 下方暗子 ${hiddenIn('bottom')} · 上方暗子 ${hiddenIn('top')}`
+             +' · 点棋子选中，再点高亮落点走/吃（点空白取消）';
+    st.textContent=msg;
+  }
+  ['r','b'].forEach(col=>{
+    const list=S.taken.filter(p=>p.color===col);
+    const order=[], cnt={};
+    for(const p of list){ if(cnt[p.type]===undefined){ cnt[p.type]=0; order.push(p.type); } cnt[p.type]++; }
+    const pend=S.pending&&S.pending.color===col?S.pending.type:null;
+    $(col==='r'?'trayRed':'trayBlack').innerHTML=order.map(t=>`<span class="mg${t===pend?' landing':''}" data-color="${col}" data-type="${t}"><span class="mini ${col==='r'?'red':'black'}">${NAMES[col][t]}</span><b class="cnt">×${cnt[t]}</b></span>`).join('');
+    $(col==='r'?'cntRed':'cntBlack').textContent=list.length;
+  });
+  $('log').innerHTML=S.log.map(t=>`<div>${flipLogText(t)}</div>`).join('');
+  const ov=$('overlay');
+  ov.hidden=!(S.over||S.showResult);                              // 结束后回等待厅，结果提示单独收起
+  if(S.over||S.showResult) $('resultText').textContent=S.resultText;
+  $('btnAgain').textContent=(MODE==='online'&&S.showResult)?'知道了':'再来一局';
+}
+
+function renderAll(){ renderPieces(); renderMarks(); renderInfo(); }
+
+/* ===== 多人：名单 / 表决 / 标点 ===== */
+function renderRoster(){
+  const el=$('roster');
+  if(MODE!=='online'||!NET.members.length){ el.innerHTML=''; return; }
+  const row=(side,label)=>{
+    const ms=NET.members.filter(m=>m.side===side);
+    const body=ms.map(m=>`<span class="dot" style="background:${esc(m.color)}"></span>`+
+      `<span class="who${m.id===NET.id?' me':''}">${m.id===NET.id?'你':('#'+esc(m.label))}${m.online?'':' ·离线'}</span>`).join('');
+    return `<div class="rrow"><span class="tag" style="flex:none">${label}</span>${body||'<span class="who">等加入…</span>'}</div>`;
+  };
+  el.innerHTML=row('bottom','下方')+row('top','上方');
+}
+function memberColor(id){
+  const m=NET.members.find(x=>x.id===id);
+  return (m&&m.color)||'#B04A3C';
+}
+function renderProposal(){
+  const p=(MODE==='online')?NET.proposal:null;
+  const bar=$('boardProp');
+  bar.hidden=!p;
+  const bd=document.querySelector('.board');
+  if(bd) bd.classList.toggle('prop',!!p);
+  document.querySelectorAll('.river').forEach(e=>{ e.style.opacity=p?'0':''; });   // 立即让位，不依赖过渡
+  if(!p) return;
+  const kindName={move:'走子',draw:'和棋',reset:'回选边',rematch:'回选边',start:'开局'}[p.kind]||p.kind;
+  const what='';                       // 走法已在棋盘上用箭头画出，文字里不再重复坐标
+  const agree=p.agree||[], need=p.need||[];
+  const canVote=(p.kind==='move')?(NET.side===p.side):true;
+  const voted=agree.includes(NET.id);
+  $('bpDot').style.background=memberColor(p.by);
+  $('bpText').textContent=`${memberName(p.by)} ${kindName}${what} · ${agree.length}/${agree.length+need.length}`+
+    (need.length?` · 待 ${need.map(memberName).join('、')}`:'');
+  $('btnAgree').hidden=!canVote||voted;
+  $('btnDecline').hidden=!canVote;
+  $('btnAgree').textContent=voted?'已同意':'同意';
+}
+function syncMarkUI(){
+  const live=(MODE==='online'&&!!NET.room);
+  const bar=$('markBar'); if(bar) bar.hidden=!live;
+  const on=!!(NET.markOn&&live);
+  $('btnMark').classList.toggle('on',on);
+  $('btnMark').textContent=on?'标点中':'开始标点';
+  const live2=NOTE_ELS.size;
+  $('mkState').textContent=on?('标点中 · '+(NET.phrase?'当前短语：'+NET.phrase:'请先选一个短语')):('未开启'+(live2?(' · 场上 '+live2+' 个标点'):''));
+  $('mkState').classList.toggle('on',on);
+  $('mkMe').style.opacity=live?'1':'.4';
+  $('mkDot').style.background=NET.color||'#B04A3C';
+  if(bar) bar.classList.toggle('on',on);
+  const b=document.querySelector('.board');
+  if(b) b.classList.toggle('mark',on);
+  const f=document.querySelector('.board-frame');
+  if(f) f.classList.toggle('marking',on);
+  [...document.querySelectorAll('.ph')].forEach(el=>el.classList.toggle('on',el.dataset.p===NET.phrase));
+}
+function setPhrase(ph){ NET.phrase=ph||''; syncMarkUI(); }
+const NOTE_ELS=new Map();                     // 'r,c' -> {el,timer}（一个交叉点只留最新标点）
+function clearNotes(){
+  for(const [,o] of NOTE_ELS){ clearTimeout(o.timer); o.el.remove(); }
+  NOTE_ELS.clear(); syncMarkUI();
+}
+function noteScale(){                    // 标点气泡随棋盘等比缩小，手机上会小到看不清 → 按棋盘宽度反向放大，保持约等于满宽桌面盘的字号
+  const svg=$('svg'); if(!svg||!svg.getBoundingClientRect) return 1;
+  const w=svg.getBoundingClientRect().width||0;
+  return w?Math.max(1,Math.min(2.2,620/w)):1;
+}
+function noteMarkup(n){
+  const k=noteScale();
+  const x=X(n.c), y=Y(n.r);
+  let pill='';
+  if(n.phrase){
+    const w=Math.max(42,n.phrase.length*14+18)*k, hw=w/2;
+    const down=y<40*k;                                   // 贴着棋盘上沿时气泡翻到落点下方，不被裁掉
+    const py=down?y+27*k:y-27*k;
+    const px=Math.min(Math.max(x,hw+3),716-hw-3);        // 左右边缘夹住，长短语也不出板
+    const tx=Math.min(Math.max(x,px-hw+7*k),px+hw-7*k);  // 小尾巴始终指着交叉点
+    pill=`<rect x="${(px-hw).toFixed(1)}" y="${(py-10*k).toFixed(1)}" width="${w.toFixed(1)}" height="${(20*k).toFixed(1)}" rx="${(10*k).toFixed(1)}"
+            fill="${esc(n.color)}" fill-opacity=".93" stroke="#FBF8F0" stroke-width="${(1.2*k).toFixed(2)}"/>`+
+         `<path d="M${(tx-5*k).toFixed(1)} ${(down?py-9*k:py+9*k).toFixed(1)}L${(tx+5*k).toFixed(1)} ${(down?py-9*k:py+9*k).toFixed(1)}L${tx.toFixed(1)} ${(down?py-16*k:py+16*k).toFixed(1)}Z" fill="${esc(n.color)}" fill-opacity=".93"/>`+
+         `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${(13.5*k).toFixed(2)}" fill="#FFF8F2" text-anchor="middle" dominant-baseline="central">${esc(n.phrase)}</text>`;
+  }
+  return pill+
+    `<circle cx="${x}" cy="${y}" r="${(11*k).toFixed(2)}" fill="${esc(n.color)}" stroke="#FBF8F0" stroke-width="${(1.8*k).toFixed(2)}"/>`+
+    `<text x="${x}" y="${y}" font-size="${(11.5*k).toFixed(2)}" fill="#FFF8F2" text-anchor="middle" dominant-baseline="central">${esc(n.label)}</text>`;
+}
+function addNote(m){
+  const key=m.r+','+m.c;
+  const old=NOTE_ELS.get(key);                 // 同一点：直接换新，不重建整层
+  if(old){ clearTimeout(old.timer); old.el.remove(); NOTE_ELS.delete(key); }
+  const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','note');
+  g.innerHTML=noteMarkup({r:m.r,c:m.c,phrase:m.phrase||'',color:m.color||'#B04A3C',label:m.label||''});
+  $('gNotes').appendChild(g);
+  const timer=setTimeout(()=>{                 // 只用一条定时器负责移除，淡出交给 CSS
+    g.remove(); NOTE_ELS.delete(key); syncMarkUI();
+  },10300);
+  NOTE_ELS.set(key,{el:g,timer});
+  while(NOTE_ELS.size>24){ const k=NOTE_ELS.keys().next().value; const o=NOTE_ELS.get(k); clearTimeout(o.timer); o.el.remove(); NOTE_ELS.delete(k); }
+  syncMarkUI();
+}
+function cellAt(e){                                   // 客户端坐标 → 棋盘交叉点（含视角翻转）
+  const svg=$('svg'); if(!svg.getScreenCTM) return null;
+  const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY;
+  const t=p.matrixTransform(svg.getScreenCTM().inverse());
+  let c=Math.round((t.x-PAD)/STEP), r=Math.round((t.y-PAD)/STEP);
+  if(FLIP){ c=8-c; r=9-r; }
+  if(r<0||r>=ROWS||c<0||c>=COLS) return null;
+  if(Math.abs(t.x-X(c))>STEP*0.44||Math.abs(t.y-Y(r))>STEP*0.44) return null;
+  return [r,c];
+}
+
+/* 视角：联机时「你」所在的半场放屏幕下方；本地同屏不翻转 */
+function updateFlip(){
+  const f=(MODE==='online' && NET.side==='top');
+  if(f===FLIP) return;
+  FLIP=f;
+  drawBoard();
+}
+
+/* ===== 联机模式 ===== */
+let MODE='local';
+const NET={ws:null,room:'',token:'',id:0,side:'',color:'',label:'',
+           members:[],counts:null,proposal:null,opp:false,toast:'',toastTimer:null,
+           markOn:false,phrase:'',pickSide:'',last:null,started:false};
+const PHRASES=['走这','好棋','小心','别走','吃它','守住','弃子','换子'];
+const sideName=s=>s==='bottom'?'下方':'上方';
+const esc=h=>String(h==null?'':h).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function memberName(id){
+  if(id===NET.id) return '你';
+  const m=NET.members.find(x=>x.id===id);
+  return m?('#'+m.label):('#'+id);
+}
+const WSURL=()=>((location.protocol==='https:'?'wss://':'ws://')+location.host+'/darkchess/ws');
+const API=p=>'/darkchess/api'+p;
+function netSend(o){ if(NET.ws&&NET.ws.readyState===1){ try{ NET.ws.send(JSON.stringify(o)); }catch(e){} } }
+function netToast(m){ NET.toast=m; clearTimeout(NET.toastTimer); NET.toastTimer=setTimeout(()=>{ NET.toast=''; renderInfo(); },4000); renderInfo(); }
+function loadSaved(){ try{ return JSON.parse(sessionStorage.getItem('dc_room')||'null'); }catch(e){ return null; } }
+function saveSaved(room,token,side){ try{ sessionStorage.setItem('dc_room',JSON.stringify({room,token,side})); }catch(e){} }
+function clearSaved(){ try{ sessionStorage.removeItem('dc_room'); }catch(e){} }
+function showJoinUI(){
+  $('joinRow').hidden=false; $('roomRow').hidden=true; $('roomCode').textContent='—';
+  $('boardProp').hidden=true; $('roster').innerHTML=''; syncMarkUI();
+  NET.members=[]; NET.counts=null; NET.proposal=null; NET.last=null; NET.started=false; clearNotes();
+}
+function showRoomUI(code){ $('joinRow').hidden=true; $('roomRow').hidden=false; $('roomCode').textContent=code; }
+
+function blankS(){                       // 联机模式在收到首帧前的空状态
+  return {board:Array.from({length:ROWS},()=>Array(COLS).fill(null)),turn:RED,over:false,resultText:'',
+          sel:null,moves:[],log:[],taken:[],pending:null,landed:null,showResult:false,
+          bottomColor:RED,topColor:BLK,seatColor:null};
+}
+function setMode(mode){
+  MODE=mode; updateFlip();
+  $('tabLocal').classList.toggle('on',mode==='local');
+  $('tabOnline').classList.toggle('on',mode==='online');
+  $('onlineBox').hidden=(mode!=='online');
+  if(mode==='local'){
+    netClose(); resetDrawBtn(); showJoinUI(); newGame();
+  }else{
+    if(!S) S=blankS();
+    S.sel=null; S.moves=[];
+    renderAll();
+    const qs=new URLSearchParams(location.search);
+    const urlRoom=parseCode(qs.get('room'));
+    const urlSide=(qs.get('side')||'').toLowerCase();
+    const forced=(urlSide==='bottom'||urlSide==='top')?urlSide:'';
+    if(forced){ NET.pickSide=forced; syncSideUI(); }
+    const saved=loadSaved();
+    // 纯邀请链接（不带 side）交给服务端自动安排到人少的半场；带 side 才指定
+    if(urlRoom) netConnect(urlRoom,(saved&&saved.room===urlRoom)?saved.token:'',forced);
+    else if(saved&&saved.room) netConnect(saved.room,saved.token||'',saved.side||'');
+    else { showJoinUI(); renderInfo(); }
+  }
+}
+
+async function netCreate(){
+  try{
+    const r=await fetch(API('/rooms'),{method:'POST'});
+    if(!r.ok){ netToast('建房失败（'+r.status+'）'); return; }
+    const d=await r.json();
+    netConnect(d.code,'',NET.pickSide);
+  }catch(e){ netToast('建房失败：网络错误'); }
+}
+function parseCode(v){
+  v=(v||'').trim();
+  const m=v.match(/room=([0-9]{4,8})/i);          // 直接粘贴邀请链接也行
+  if(m) return m[1];
+  return (v.match(/[0-9]/g)||[]).join('');
+}
+function netJoin(){
+  const code=parseCode($('roomInput').value);
+  if(code.length!==6){ netToast('房间码是 6 位数字'); return; }
+  netConnect(code,'',NET.pickSide);
+}
+function netConnect(room,token,side){
+  if(MODE!=='online'){                     // 兜底：任何时候连房间都切到联机模式
+    MODE='online';
+    $('tabLocal').classList.remove('on');
+    $('tabOnline').classList.add('on');
+    $('onlineBox').hidden=false;
+  }
+  netClose();
+  NET.room=room; NET.token=token||''; NET.side=''; NET.opp=false;
+  NET.members=[]; NET.counts=null; NET.proposal=null; clearNotes();
+  showRoomUI(room); syncMarkUI();
+  let ws;
+  try{ ws=new WebSocket(WSURL()+'?room='+encodeURIComponent(room)+(token?'&token='+encodeURIComponent(token):'')+(side?'&side='+side:'')); }
+  catch(e){ netToast('无法连接'); return; }
+  NET.ws=ws;
+  ws.onclose=e=>{
+    if(NET.ws!==ws) return;
+    NET.ws=null; NET.opp=false;
+    if(e.code===4003){ netToast('房间已满'); clearSaved(); showJoinUI(); }
+    else if(e.code===4004){ netToast('房间不存在或已过期'); clearSaved(); showJoinUI(); }
+    else if(e.code===4005){ netToast('房间闲置过久，已回收'); clearSaved(); showJoinUI(); }
+    else if(e.code!==4006&&e.code!==4007){ netToast('连接断开，正在重连…'); setTimeout(()=>{ if(MODE==='online'&&NET.room===room&&!NET.ws) netConnect(room,NET.token); },1500); }
+    renderInfo();
+  };
+  ws.onmessage=e=>{ let m; try{ m=JSON.parse(e.data); }catch(err){ return; } handleNet(m); };
+}
+function netClose(){ const ws=NET.ws; NET.ws=null; if(ws){ try{ ws.close(); }catch(e){} } NET.side=''; updateFlip(); }
+function handleNet(m){
+  if(m.t==='hello'){
+    NET.id=m.id; NET.side=m.seat; NET.color=m.color||''; NET.label=m.label||'';
+    if(m.token){ NET.token=m.token; saveSaved(NET.room,NET.token,NET.side); }
+    if(m.forced) netToast('你选的半场满了，已安排到'+sideName(m.seat));
+    updateFlip(); renderAll();
+  }
+  else if(m.t==='roster'){
+    NET.members=m.members||[]; NET.counts=m.counts||null; NET.proposal=m.proposal||null;
+    const me=NET.members.find(x=>x.id===NET.id);
+    if(me&&me.side&&me.side!==NET.side){
+      const was=NET.side; NET.side=me.side; NET.pickSide=me.side;
+      updateFlip();
+      if(was) netToast('已换到'+sideName(NET.side));
+    }
+    NET.opp=NET.members.some(x=>x.online&&x.side!==NET.side);
+    renderAll();
+  }
+  else if(m.t==='state'){ applyNetState(m); renderAll(); }
+  else if(m.t==='moves'){ if(S.sel&&S.sel.r===m.r&&S.sel.c===m.c){ S.moves=m.moves||[]; renderAll(); } }
+  else if(m.t==='proposal'){
+    NET.proposal=m.p||null;
+    if(m.declined) netToast(memberName(m.declined)+' 否决了这次操作');
+    renderAll();
+  }
+  else if(m.t==='mark'){ addNote(m); }
+  else if(m.t==='marks:clear'){ clearNotes(); }
+  else if(m.t==='err'){ netToast(m.msg||'这步走不了'); }
+}
+function applyNetState(m){
+  const wasStarted=NET.started;                 // 只看联机状态，避免单机残留的 S 误触发
+  NET.started=(m.started!==false);
+  if(typeof m.opp==='boolean') NET.opp=m.opp;      // 关键：加入方也从 state 里同步对手在线状态
+  if(m.counts) NET.counts=m.counts;
+  if('proposal' in m) NET.proposal=m.proposal||null;
+  if(m.counts) NET.counts=m.counts;
+  if('proposal' in m) NET.proposal=m.proposal||null;
+  let cap=null, capRect=null, capHidden=false;
+  if(m.evt&&m.evt.cap){
+    const d=document.querySelector('#gPieces .pc[data-r="'+m.evt.tr+'"][data-c="'+m.evt.tc+'"] .disc');
+    if(d) capRect=d.getBoundingClientRect();
+    cap=m.evt.cap; capHidden=!!cap.hidden;
+  }
+  const board=m.board.map(row=>row.map(cell=>cell? (cell.h?{hidden:true}:{hidden:false,color:cell.color,type:cell.type}) : null));
+  S={
+    board, turn:m.turn, over:!!m.over, resultText:m.result||'',
+    sel:null, moves:[], log:(m.log||[]).slice().reverse(), taken:m.taken||[],
+    pending:null, landed:null, showResult:false,
+    bottomColor:m.bottomColor, topColor:m.topColor, seatColor:m.seatColor
+  };
+  if(m.started===false){
+    NET.last=m.last||null;
+    if(m.last&&wasStarted){ S.showResult=true; S.resultText=m.last.text; }   // 局终：保留结果提示
+    else if(wasStarted) netToast('已回到选边，等待开始');                      // 新开一局/作废
+  }else NET.last=null;
+  if(m.evt&&m.evt.tr!==undefined) S.landed={r:m.evt.tr,c:m.evt.tc};
+  if(cap&&capRect){ S.pending={color:cap.color,type:cap.type}; setTimeout(()=>flyCaptured({color:cap.color,type:cap.type},capRect,capHidden,m.evt.tr),0); }
+}
+
+/* ===== 交互 ===== */
+$('svg').addEventListener('click',e=>{
+  if(MODE==='online'&&NET.markOn){                  // 标点交流模式
+    const cell=cellAt(e);
+    if(cell) netSend({t:'mark',r:cell[0],c:cell[1],phrase:NET.phrase});
+    return;
+  }
+  if(S.over) return;
+  const mk=e.target.closest('.mk,.mkcap,.mkring');
+  if(mk){
+    const r=+mk.dataset.r, c=+mk.dataset.c;
+    if(MODE==='online'){ if(S.sel) netSend({t:'move',fr:S.sel.r,fc:S.sel.c,tr:r,tc:c}); }
+    else doMove(r,c);
+    return;
+  }
+  const el=e.target.closest('.pc');
+  if(el){
+    const r=+el.dataset.r, c=+el.dataset.c;
+    if(S.sel&&S.sel.r===r&&S.sel.c===c){ S.sel=null;S.moves=[];renderAll(); return; }
+    if(S.sel&&S.moves.some(m=>m[0]===r&&m[1]===c)){          // 已选中时，点合法落点优先走/吃
+      if(MODE==='online') netSend({t:'move',fr:S.sel.r,fc:S.sel.c,tr:r,tc:c});
+      else doMove(r,c);
+      return;
+    }
+    if(MODE==='online'){
+      if(S.bottomColor&&NET.opp&&operableAt(r,c)&&S.turn===S.seatColor){ S.sel={r,c}; S.moves=[]; netSend({t:'sel',r,c}); renderAll(); }
+      return;
+    }
+    selectAt(r,c);
+    return;
+  }
+  S.sel=null;S.moves=[];renderAll();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&S&&!S.over){ S.sel=null;S.moves=[];renderAll(); }
+});
+$('btnNew').addEventListener('click',()=>{
+  if(MODE==='online'){
+    if(!S.bottomColor){ netToast('还没开局，选边后点「开始对局」'); return; }
+    netSend({t:'reset'});                          // 双方同意后回到选边等待厅
+    return;
+  }
+  newGame();
+});
+$('btnAgain').addEventListener('click',()=>{
+  if(MODE==='online'){
+    if(S.showResult){ S.showResult=false; renderInfo(); return; }   // 已经在等待厅，只收起结果提示
+    if(S.over) netSend({t:'reset'});
+    return;
+  }
+  newGame();
+});
+let drawArmed=false, drawTimer=null;
+function resetDrawBtn(){ drawArmed=false; clearTimeout(drawTimer); const b=$('btnDraw'); b.textContent='和棋'; b.classList.remove('armed'); }
+$('btnDraw').addEventListener('click',()=>{
+  if(S.over) return;
+  if(MODE==='online'){
+    if(!S.bottomColor){ netToast('还没开局'); return; }
+    netSend({t:'draw'}); return;
+  }
+  const b=$('btnDraw');
+  if(!drawArmed){                       // 无弹窗：两段式确认，3 秒内再点一次即和棋
+    drawArmed=true;
+    b.textContent='再点一次确认和棋';
+    b.classList.add('armed');
+    clearTimeout(drawTimer);
+    drawTimer=setTimeout(resetDrawBtn,3000);
+    return;
+  }
+  resetDrawBtn();
+  finish({type:'draw'});
+  renderAll();
+});
+
+/* 联机面板 */
+$('tabLocal').addEventListener('click',()=>{ if(MODE!=='local') setMode('local'); });
+$('tabOnline').addEventListener('click',()=>{ if(MODE!=='online') setMode('online'); });
+$('btnCreate').addEventListener('click',netCreate);
+$('btnJoin').addEventListener('click',netJoin);
+$('roomInput').addEventListener('keydown',e=>{ if(e.key==='Enter') netJoin(); });
+async function copyText(t){
+  try{ if(navigator.clipboard&&window.isSecureContext){ await navigator.clipboard.writeText(t); return true; } }catch(e){}
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=t; ta.setAttribute('readonly','');
+    ta.style.position='fixed'; ta.style.left='-9999px'; ta.style.top='0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0,t.length);
+    const ok=document.execCommand('copy'); ta.remove(); return ok;
+  }catch(e){ return false; }
+}
+$('btnCopy').addEventListener('click',async()=>{
+  const url=location.origin+'/games/dark_chess.html?room='+NET.room;
+  if(await copyText(url)) netToast('邀请链接已复制');
+  else netToast('复制失败，请手动复制：'+url);
+});
+$('btnLeaveRoom').addEventListener('click',()=>{ netSend({t:'leave'}); clearSaved(); netClose(); showJoinUI(); renderInfo(); });
+$('btnStart').addEventListener('click',()=>{ netSend({t:'start'}); });
+$('btnAgree').addEventListener('click',()=>{ netSend({t:'agree'}); });
+$('btnDecline').addEventListener('click',()=>{ netSend({t:'decline'}); });
+function pickSide(s){
+  NET.pickSide=s;
+  try{ localStorage.setItem('dc_side',s); }catch(e){}
+  const inRoom=(MODE==='online'&&!!NET.room&&NET.ws&&NET.ws.readyState===1);
+  if(inRoom){
+    const started=!!(S&&S.bottomColor);
+    if(started){ netToast('已开局，换边请先退出房间'); syncSideUI(); return; }
+    if(NET.side===s){ netToast('你已经在'+sideName(s)+'了'); syncSideUI(); return; }
+    netSend({t:'side',side:s});
+  }
+  syncSideUI();
+}
+$('sideBottom').addEventListener('click',()=>pickSide('bottom'));
+$('sideTop').addEventListener('click',()=>pickSide('top'));
+$('btnMark').addEventListener('click',()=>{ NET.markOn=!NET.markOn; if(NET.markOn&&!NET.phrase) setPhrase(PHRASES[0]); syncMarkUI(); renderInfo(); });
+$('btnMarkClear').addEventListener('click',()=>{ if(MODE==='online') netSend({t:'marks:clear'}); clearNotes(); });
+$('phrases').addEventListener('click',e=>{
+  const b=e.target.closest('.ph'); if(!b) return;
+  setPhrase(b.dataset.p); NET.markOn=true;
+  syncMarkUI(); renderInfo();
+});
+
+/* ===== 选边 ===== */
+function syncSideUI(){
+  const inRoom=(MODE==='online'&&!!NET.room);
+  const started=!!(inRoom&&S&&S.bottomColor);
+  const cur=inRoom?(NET.side||NET.pickSide):NET.pickSide;
+  $('sideBottom').classList.toggle('on',cur==='bottom');
+  $('sideTop').classList.toggle('on',cur==='top');
+  $('sideBottom').classList.toggle('lock',started);
+  $('sideTop').classList.toggle('lock',started);
+  $('sideHint').textContent=!inRoom
+    ? '选好后建房/加入；开局前都能换'
+    : (started?'已开局 · 不能换边':('你在'+sideName(NET.side)+' · 开局前可换边'));
+}
+$('phrases').innerHTML=PHRASES.map(p=>`<button class="ph" data-p="${p}">${p}</button>`).join('');
+try{ NET.pickSide=localStorage.getItem('dc_side')||'bottom'; }catch(e){ NET.pickSide='bottom'; }
+syncSideUI();
+
+drawBoard();
+drawGarden();
+setMode(new URLSearchParams(location.search).get('room')?'online':'local');
+})();
+</script>
+</body>
+</html>

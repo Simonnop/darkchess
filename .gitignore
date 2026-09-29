@@ -1,0 +1,22 @@
+# Python 字节码 / 缓存
+__pycache__/
+*.py[cod]
+
+# 虚拟环境
+.venv/
+venv/
+
+# 运行时产物（PID、日志）
+.darkchess.pid
+logs/
+
+# 编辑器 / 系统杂项
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*~
+
+# 临时备份
+*.bak
+*.orig
