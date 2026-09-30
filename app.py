@@ -31,7 +31,7 @@ ROOM_TTL = 30 * 60          # 闲置 30 分钟回收
 RECLAIM_AFTER = 120         # 断线超过 2 分钟，同一标识可被新连接接管（仅用于令牌找回）
 MAX_ROOMS = 200
 MAX_WS_PER_IP = 12
-SIDE_MAX = 4                # 每边最多成员
+SIDE_MAX = 2                # 固定 2v2：每边 2 人，房间共 4 座
 ALPHABET = "0123456789"     # 房间码：6 位纯数字
 COLORS = ["#B04A3C", "#3F6C8A", "#5F7D5B", "#B8873C",
           "#6C5B8A", "#2F7A72", "#8A5C7A", "#6E6A3E"]
@@ -84,7 +84,7 @@ def other_side(side):
 
 def need_of(room, p):
     """该提案还差哪些在线成员点头"""
-    pool = online(room, p["side"]) if p["kind"] == "move" else online(room)
+    pool = online(room, p["side"]) if p["kind"] in ("move", "flip") else online(room)
     return {m["id"] for m in pool} - p["agree"]
 
 
@@ -140,6 +140,17 @@ async def broadcast(room, msg, skip=None):
             await send(m["ws"], msg)
 
 
+async def send_side(room, side, msg, skip=None):
+    """只发给某一边（同队）的在线成员"""
+    for m in room["members"].values():
+        if m["side"] != side:
+            continue
+        if skip is not None and m["id"] == skip:
+            continue
+        if m["ws"]:
+            await send(m["ws"], msg)
+
+
 async def broadcast_state(room, evt=None):
     for m in room["members"].values():
         if m["ws"]:
@@ -171,17 +182,21 @@ async def exec_proposal(room):
         st = room["state"]
         ok, evt, err = R.do_move(st, p["side"], p["fr"], p["fc"], p["tr"], p["tc"])
         if ok:
-            if st["over"]:
-                await settle(room, evt)         # 将帅被吃 / 无棋可走：直接回等待厅
-            else:
-                await broadcast_state(room, evt)
+            await broadcast_state(room, evt)  # 含终局：保留最终棋子分布，结果展示在棋盘下方
         else:
             await broadcast(room, {"t": "err", "msg": err or "这步走不了"})
+    elif kind == "flip":
+        st = room["state"]
+        ok, evt, err = R.flip_general(st, p["side"])
+        if ok:
+            await broadcast_state(room, evt)
+        else:
+            await broadcast(room, {"t": "err", "msg": err or "现在不能翻"})
     elif kind == "draw":
         st = room["state"]
         R.finish(st, {"type": "draw"})
         st["pending_draw"] = None
-        await settle(room)
+        await broadcast_state(room)              # 和棋同样保留当前棋盘
     elif kind == "start":
         room["state"] = R.new_state()
         room["last"] = None
@@ -358,6 +373,8 @@ async def ws_endpoint(ws: WebSocket):
                     await broadcast(room, {"t": "proposal", "p": None})
                 else:
                     await try_finish(room)
+            await send_side(room, member["side"],
+                            {"t": "sim:clear", "by": member["id"]})
             await broadcast_roster(room)
 
 
@@ -380,6 +397,35 @@ async def handle(room, m, msg):
         return
     if t == "marks:clear":
         await broadcast(room, {"t": "marks:clear", "by": m["id"]})
+        return
+    if t == "sim":                                 # 队内推演盘：只转发同一边的成员
+        sim_board = msg.get("board")
+        if not isinstance(sim_board, list) or len(sim_board) > R.ROWS:
+            return
+        sim_taken = msg.get("taken")
+        if not isinstance(sim_taken, list) or len(sim_taken) > 32:
+            return
+        await send_side(room, m["side"], {
+            "t": "sim", "board": sim_board, "taken": sim_taken,
+            "by": m["id"], "color": m["color"], "label": m["label"]},
+            skip=m["id"])
+        return
+    if t == "sim:clear":
+        await send_side(room, m["side"],
+                        {"t": "sim:clear", "by": m["id"]}, skip=m["id"])
+        return
+    if t == "flip":                                 # 定色阶段：原地翻开己方將位
+        if not st or st.get("phase") != "opening":
+            await send(m["ws"], {"t": "err", "msg": "现在不是定色阶段"})
+            return
+        if room.get("proposal"):
+            await send(m["ws"], {"t": "err", "msg": "已有待表决的操作"})
+            return
+        gr, gc = R.GEN_SQ[m["side"]]
+        if not R.operable(st, m["side"], gr, gc):
+            await send(m["ws"], {"t": "err", "msg": "还没轮到你翻牌"})
+            return
+        await propose(room, m, "flip")
         return
     if t == "start":                                 # 开始对局（双方一致同意）
         if room["state"] is not None:
@@ -432,6 +478,9 @@ async def handle(room, m, msg):
     if st is None:
         await send(m["ws"], {"t": "err", "msg": "等两个半场都有人后再走"})
         return
+    if st.get("phase") == "opening":
+        await send(m["ws"], {"t": "err", "msg": "定色阶段：请先翻开你这一边的將位"})
+        return
 
     my_turn = R.seat_color(st, m["side"]) == st["turn"]
 
@@ -465,7 +514,7 @@ async def handle(room, m, msg):
         await propose(room, m, "move", fr=fr, fc=fc, tr=tr, tc=tc)
 
     elif t == "draw":
-        if st["over"] or room.get("proposal"):
+        if st.get("phase") != "play" or st["over"] or room.get("proposal"):
             return
         await propose(room, m, "draw")
 
@@ -488,6 +537,8 @@ async def handle(room, m, msg):
             ws_old = member["ws"]
             member["ws"] = None
             member["online"] = False
+            await send_side(room, member["side"],
+                            {"t": "sim:clear", "by": member["id"]})
             await broadcast_roster(room)
             if ws_old:
                 try:

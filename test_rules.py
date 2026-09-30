@@ -72,7 +72,11 @@ check("不能吃架后第二子", [x for x in moves(b, 7, 7) if x == "7,0"], [])
 b = empty(); b[9][6] = mk("b", "R", True)
 check("相位暗子走田", sorted([x for x in moves(b, 9, 6) if x in ("7,4", "7,8")]), ["7,4", "7,8"])
 b = empty(); b[9][5] = mk("r", "P", True)
-check("士位暗子斜一步", sorted(moves(b, 9, 5)), ["8,4", "8,6"])
+check("士位暗子斜一步不出九宫", sorted(moves(b, 9, 5)), ["8,4"])
+b = empty(); b[0][3] = mk("r", "P", True)
+check("上方士位暗子不出九宫", sorted(moves(b, 0, 3)), ["1,4"])
+b = empty(); b[4][4] = mk("r", "A", False)
+check("翻开的士无九宫限制", sorted(moves(b, 4, 4)), ["3,3", "3,5", "5,3", "5,5"])
 b = empty(); b[0][4] = mk("b", "K", True)
 check("將位暗子按將走法", sorted(moves(b, 0, 4)), ["0,3", "0,5", "1,4"])
 
@@ -109,6 +113,26 @@ check("上方可动己半场暗子", R.operable(st, "top", 3, 0), True)
 st = state_of(empty()); st["board"][9][4] = mk("r", "K", False); st["board"][0][4] = mk("b", "K", False)
 check("红帅有棋走", R.has_any_move(st, "bottom"), True)
 
+# ---------- 定色阶段：随机先手，首翻锁色，二翻后先手先走 ----------
+st = R.new_state()
+first = st["opening_first"]
+second = "top" if first == "bottom" else "bottom"
+check("开局在定色阶段", st["phase"], "opening")
+ok, evt, err = R.flip_general(st, second)
+check("非先手不能先翻", (ok, err), (False, "还没轮到你翻牌"))
+ok, evt, err = R.flip_general(st, first)
+check("先手首翻成功并锁色", (ok, err, st["phase"]), (True, None, "opening"))
+check("首翻后双方执色已定",
+      (st["bottom_color"] is not None and st["top_color"] is not None), True)
+check("双方执色不同", st["bottom_color"] != st["top_color"], True)
+ok, evt, err = R.flip_general(st, second)
+check("对方二翻进入行棋", (ok, st["phase"]), (True, "play"))
+check("二翻后由先手先走", st["turn"], st[first + "_color"])
+ok, evt, err = R.flip_general(st, first)
+check("定色后不能再翻", (ok, err), (False, "已经定色了"))
+ok, evt, err = R.do_move(R.new_state(first_side="bottom"), "bottom", 9, 4, 8, 4)
+check("定色前不能走子", (ok, err), (False, "请先翻开將位定色"))
+
 # ---------- 随机自对弈不变量 ----------
 random.seed(20260929)
 games = 300
@@ -116,6 +140,9 @@ done = 0
 steps = 0
 for g in range(games):
     st = R.new_state()
+    _f = st["opening_first"]
+    R.flip_general(st, _f)
+    R.flip_general(st, "top" if _f == "bottom" else "bottom")
     mv = 0
     while not st["over"] and mv < 800:
         cands = []

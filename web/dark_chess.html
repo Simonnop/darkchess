@@ -9,65 +9,69 @@
 <link rel="stylesheet" href="/fonts/fonts.css">
 <style>
 :root{
-  --paper:#F0EBDE;--paper2:#E7E0CF;--paper3:#F8F4EA;
-  --ink:#2E343D;--ink2:#5D6673;--ink3:#8B9098;
-  --line:rgba(46,52,61,.16);--line2:rgba(46,52,61,.32);
-  --red:#B04A3C;--red2:#8E3A2F;--green:#5F7D5B;--green2:#7E9C74;--tile:#3E4650;
+  --paper:#F5EEE0;--paper2:#EAE1CE;--paper3:#FBF7ED;
+  --ink:#3B352B;--ink2:#6E6555;--ink3:#9E947F;
+  --line:rgba(96,72,42,.16);--line2:rgba(96,72,42,.32);
+  --red:#B04A3C;--red2:#92352B;--green:#5F7D5B;--green2:#85A077;--tile:#3D4A41;
+  --card-bg:rgba(253,249,240,.92);
+  --card-border:rgba(104,80,48,.20);
+  --card-shadow:0 1px 0 rgba(255,255,255,.65) inset,0 12px 28px -24px rgba(70,50,20,.55);
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}          /* 让 hidden 属性不被 .orow 等 display 规则覆盖 */
 html,body{margin:0;padding:0}
 body{
-  background:#E9E6DC;color:var(--ink);
+  background:#EDE7D8;color:var(--ink);
   font-family:'JetBrains Mono','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;user-select:none;-webkit-tap-highlight-color:transparent;
 }
-/* ── 背景：细像素苏州园林（canvas）＋ 雾气提亮，让纸上墨色可读 ── */
-#bg{position:fixed;inset:0;z-index:0;pointer-events:none}
-#bg canvas{width:100%;height:100%;display:block;object-fit:cover;object-position:center bottom;image-rendering:pixelated;image-rendering:crisp-edges;-ms-interpolation-mode:nearest-neighbor}
-#bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(238,240,235,.22) 0%,rgba(238,240,235,.14) 26%,rgba(238,240,235,.10) 50%,rgba(238,240,235,.18) 74%,rgba(238,240,235,.30) 100%)}
+/* ── 背景：淡雅宣纸（像素园林画布已停用，保留 JS 不动）── */
+#bg{display:none}
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background:radial-gradient(900px 520px at 50% -10%,rgba(255,255,255,.38),transparent 60%),
-             radial-gradient(700px 420px at 88% 110%,rgba(120,140,120,.10),transparent 60%);
+  background:
+    radial-gradient(1000px 560px at 50% -12%,rgba(255,255,255,.50),transparent 62%),
+    radial-gradient(760px 380px at 8% 108%,rgba(88,108,94,.12),transparent 60%),
+    radial-gradient(820px 400px at 92% 105%,rgba(88,108,94,.10),transparent 60%);
 }
-.wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:26px 16px 48px}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:repeating-linear-gradient(0deg,rgba(90,70,40,.022) 0 1px,transparent 1px 4px);
+}
+.wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:26px 16px 48px}
 header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 h1{margin:0;font-size:30px;letter-spacing:.14em;color:var(--ink);font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.6)}
 h1 .en{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color:var(--ink2);letter-spacing:.34em;margin-left:12px;font-weight:400;vertical-align:2px}
-.back{font-size:12px;color:var(--ink2);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:7px 14px;background:rgba(240,235,222,.72);transition:.2s}
-.back:hover{color:var(--ink);border-color:var(--line2);background:var(--paper3)}
+.back{font-size:12px;color:var(--ink2);text-decoration:none;border:1px solid rgba(104,80,48,.28);border-radius:999px;padding:8px 15px;background:linear-gradient(180deg,#FDF9F0,#F0E8D5);transition:.18s;box-shadow:0 1px 0 rgba(255,255,255,.7) inset}
+.back:hover{color:var(--ink);border-color:rgba(104,80,48,.5);transform:translateY(-1px)}
 .layout{display:flex;gap:22px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
-.board-col{--bdw:min(100%,calc((100vh - 235px) * 0.9018));flex:1 1 460px;max-width:620px;min-width:290px}
-.side{flex:0 1 330px;min-width:270px;max-width:400px;width:100%;display:flex;flex-direction:column;gap:14px}
-/* ── 纸面板通用 ── */
-.status,.online,.tray-block,.log,details.rules{
-  background-image:repeating-linear-gradient(0deg,rgba(46,52,61,.035) 0 1px,transparent 1px 4px);
-}
+.board-col{--bdw:min(100%,calc((100vh - 150px) * 0.9018));flex:1 1 auto;max-width:760px;min-width:300px}
+.side{flex:0 0 320px;min-width:300px;max-width:340px;width:100%;display:flex;flex-direction:column;gap:14px}
+/* ── 纸面板：卡片样式见各组件（统一 var(--card-*) ── */
 .tag{font-size:12px;color:var(--ink2)}
 .board-frame{
   width:var(--bdw);
-  margin:0 auto;padding:1px;border-radius:12px;
-  background:linear-gradient(180deg,rgba(46,52,61,.38),rgba(46,52,61,.14) 42%,rgba(46,52,61,.10));
-  box-shadow:0 16px 34px -26px rgba(24,30,38,.9);
+  margin:0 auto;padding:4px;border-radius:15px;
+  background:linear-gradient(155deg,#C3B089 0%,#A98F63 45%,#866E47 100%);
+  box-shadow:0 2px 0 rgba(255,255,255,.28) inset,0 26px 52px -30px rgba(60,42,18,.55);
 }
-.board{position:relative;background-color:rgba(243,238,226,.95);border-radius:11px;overflow:hidden;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.board{position:relative;background:linear-gradient(180deg,#F7F0E1 0%,#F1E9D7 100%);border-radius:12px;overflow:hidden}
 .board svg{display:block;width:100%;height:auto}
-.bl{stroke:rgba(46,52,61,.42);stroke-width:1.6}
-.bl.thick{stroke:rgba(46,52,61,.72);stroke-width:2.6}
-.river{fill:rgba(46,52,61,.32);font-size:26px;font-family:'Kaiti SC','STKaiti','KaiTi','Noto Serif CJK SC',serif;letter-spacing:6px}
-/* ── 棋子：瓷白子 + 朱砂/墨 ── */
+.bl{stroke:rgba(84,64,40,.48);stroke-width:1.6}
+.bl.thick{stroke:rgba(84,64,40,.68);stroke-width:2.6}
+.river{fill:rgba(122,88,48,.40);font-size:25px;font-family:'Kaiti SC','STKaiti','KaiTi','Noto Serif CJK SC',serif;letter-spacing:7px}
+/* ── 棋子：瓷面明子 + 青釉暗子 ── */
 .pc{cursor:pointer}
-.pc .disc{stroke-width:2}
-.pc.red .disc{fill:var(--paper3);stroke:var(--red)}
-.pc.black .disc{fill:var(--paper3);stroke:var(--ink)}
+.pc .disc{fill:url(#gPorcelain);stroke-width:2;filter:url(#pcShadow)}
+.pc.red .disc{stroke:var(--red)}
+.pc.black .disc{stroke:var(--ink)}
 .pc .glyph{font-family:'Kaiti SC','STKaiti','KaiTi','Noto Serif CJK SC','SimSun',serif;font-size:40px;text-anchor:middle;dominant-baseline:central}
 .pc.red .glyph{fill:var(--red2)}
 .pc.black .glyph{fill:var(--ink)}
-.pc.hidden .disc{fill:var(--tile);stroke:#57616E}
-.pc.hidden .hring{fill:none;stroke:rgba(240,235,222,.34);stroke-width:1.2}
-.pc.hidden .poschar{font-family:'Kaiti SC','STKaiti','KaiTi',serif;font-size:20px;fill:#C6CCD4;text-anchor:middle;dominant-baseline:central}
-.pc.op .opring{fill:none;stroke:rgba(95,125,91,.34);stroke-width:2}
+.pc.hidden .disc{fill:url(#gCeladon);stroke:rgba(247,242,230,.32);stroke-width:1.4}
+.pc.hidden .hring{fill:none;stroke:rgba(247,242,230,.26);stroke-width:1.2}
+.pc.hidden .poschar{font-family:'Kaiti SC','STKaiti','KaiTi',serif;font-size:18px;fill:rgba(240,234,218,.62);text-anchor:middle;dominant-baseline:central}
+.pc.op .opring{fill:none;stroke:rgba(107,138,96,.42);stroke-width:2}
 .pc.red:hover .disc,.pc.black:hover .disc,.pc.hidden:hover .disc{stroke:var(--green2)}
 .pc.sel .disc{stroke:var(--red) !important;stroke-width:4}
 .pc.sel{filter:drop-shadow(0 2px 6px rgba(176,74,60,.35))}
@@ -80,9 +84,8 @@ h1 .en{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color
 /* 表决条：显示在楚河汉界上（棋盘正中，不遮棋子） */
 .board-prop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   display:flex;align-items:center;gap:5px;max-width:calc(100% - 14px);
-  padding:2px 8px;border-radius:999px;border:1px solid rgba(176,74,60,.45);
-  background-color:rgba(246,238,226,.72);box-shadow:0 3px 10px -8px rgba(24,30,38,.45);
-  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  padding:3px 10px;border-radius:999px;border:1px solid rgba(176,74,60,.40);
+  background-color:rgba(251,245,233,.9);box-shadow:0 4px 12px -8px rgba(60,40,20,.5);
   font-size:11px;color:var(--ink);z-index:4;
   animation:bpIn .18s cubic-bezier(.2,.9,.3,1.2) both}
 .board-prop .btn.sm{padding:1px 8px;font-size:11px;border-radius:7px;line-height:1.35;flex:none;white-space:nowrap}
@@ -97,42 +100,86 @@ h1 .en{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color
 .prop-head{stroke:none}
 @keyframes propdash{to{stroke-dashoffset:-32}}
 @media (prefers-reduced-motion: reduce){.prop-line{animation:none}}
-.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:rgba(243,238,226,.9);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border-radius:11px;z-index:5}
+.overlay{position:static;margin:0 10px 10px;display:flex;align-items:center;gap:14px;
+  padding:11px 15px;border-radius:13px;
+  background:rgba(251,247,238,.95);border:1px solid rgba(104,80,48,.24);
+  box-shadow:0 10px 22px -16px rgba(70,50,20,.5);z-index:5}
 .overlay[hidden]{display:none}
-.result{font-size:20px;font-weight:700;letter-spacing:.06em;text-align:center;padding:0 20px;line-height:1.7;color:var(--ink)}
+.result{flex:1;min-width:0;font-size:16px;font-weight:700;letter-spacing:.03em;text-align:left;line-height:1.4;color:var(--ink);overflow-wrap:anywhere}
 .status,.log,.result,.roomcode,.tag{overflow-wrap:anywhere}
-.status{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);font-size:13px;line-height:1.7;color:var(--ink);min-height:46px}
+.status{padding:13px 15px;border:1px solid var(--card-border);border-radius:12px;background-color:var(--card-bg);box-shadow:var(--card-shadow);font-size:13px;line-height:1.75;color:var(--ink);min-height:46px}
 .btns{display:flex;gap:10px}
-.btn{appearance:none;border:1px solid var(--line2);background-color:rgba(240,235,222,.9);color:var(--ink);padding:10px 16px;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.2s;box-shadow:0 1px 0 rgba(255,255,255,.55) inset}
-.btn:hover{border-color:var(--ink2);background-color:var(--paper3)}
-.btn.primary{background:var(--tile);border-color:var(--tile);color:var(--paper3);font-weight:700;box-shadow:0 1px 0 rgba(255,255,255,.18) inset}
-.btn.primary:hover{background:#4A525E}
-.btn.armed{background-color:rgba(176,74,62,.12);border-color:rgba(176,74,62,.6);color:var(--red2)}
+.btn{appearance:none;border:1px solid rgba(104,80,48,.30);background:linear-gradient(180deg,#FDF9F0,#F0E8D5);color:var(--ink);padding:10px 16px;border-radius:10px;font:inherit;font-size:13px;cursor:pointer;transition:.18s;box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 2px 6px -3px rgba(80,58,25,.35)}
+.btn:hover{border-color:rgba(104,80,48,.52);transform:translateY(-1px);box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 5px 12px -5px rgba(80,58,25,.45)}
+.btn:active{transform:translateY(0)}
+.btn.primary{background:linear-gradient(180deg,#4C594F,#37433B);border-color:#2E3932;color:#F7F2E5;font-weight:700;box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 3px 8px -3px rgba(40,50,40,.55)}
+.btn.primary:hover{background:linear-gradient(180deg,#56645A,#3E4B42);border-color:#334037}
+.btn.armed{background-color:rgba(176,74,60,.12);border-color:rgba(176,74,60,.6);color:var(--red2)}
 .btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
 .tabs{display:flex;gap:8px}
-.tab{flex:1;appearance:none;border:1px solid var(--line);background-color:rgba(240,235,222,.88);color:var(--ink2);padding:8px 0;border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:.2s}
-.tab:hover{color:var(--ink);border-color:var(--line2);background-color:var(--paper3)}
-.tab.on{background:var(--tile);border-color:var(--tile);color:var(--paper3);box-shadow:0 1px 0 rgba(255,255,255,.18) inset}
-.online{border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
-.orow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.orow .inp{flex:1;min-width:72px;background:#FBF8F0;border:1px solid var(--line2);border-radius:8px;color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;letter-spacing:.18em}
-.orow .inp:focus{outline:none;border-color:var(--ink2);box-shadow:0 0 0 2px rgba(46,52,61,.08)}
+.tab{flex:1;appearance:none;border:1px solid rgba(104,80,48,.22);background:linear-gradient(180deg,#FDF9F0,#F0E8D5);color:var(--ink2);padding:8px 0;border-radius:10px;font:inherit;font-size:13px;cursor:pointer;transition:.18s}
+.tab:hover{color:var(--ink);border-color:rgba(104,80,48,.42)}
+.tab.on{background:linear-gradient(180deg,#4C594F,#37433B);border-color:#2E3932;color:#F7F2E5;box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+.online{border:1px solid var(--card-border);border-radius:12px;background-color:var(--card-bg);box-shadow:var(--card-shadow);padding:12px;display:flex;flex-direction:column;gap:10px}
+.joinrow{display:flex;align-items:center;gap:7px}
+.joinrow .btn{flex:none}
+.joinrow .inp{flex:1;min-width:0;width:100%;background:#FDFAF2;border:1px solid rgba(104,80,48,.30);border-radius:9px;color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;letter-spacing:.06em}
+.joinrow .inp:focus{outline:none;border-color:#4C594F;box-shadow:0 0 0 2px rgba(76,89,79,.18)}
+.prefrow{display:flex;align-items:stretch;gap:7px}
+.prefrow .tag{flex:none;display:flex;align-items:center}
+.prefrow .side{flex:1 1 0;min-width:0;padding-left:10px;padding-right:10px}
+.roomrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.roomtools{margin-left:auto;display:flex;gap:6px}
 .roomcode{font-size:13px;color:var(--ink2)}
-.roomcode b{font-family:'DotGothic16','JetBrains Mono',monospace;color:var(--red2);letter-spacing:.16em;font-weight:400}
+.roomcode b{font-family:'DotGothic16','JetBrains Mono',monospace;color:var(--red2);letter-spacing:.16em;font-weight:400;font-size:14px}
+.teams{display:flex;flex-direction:column;gap:8px}
+.team{border:1px solid rgba(104,80,48,.20);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:7px;background:rgba(255,255,255,.32)}
+.team.mine{border-color:rgba(76,89,79,.62);background:rgba(76,89,79,.07)}
+.team-head{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink)}
+.team-head .tname{font-weight:700;letter-spacing:.05em}
+.team-head .tag{font-weight:400}
+.team-head .join{margin-left:auto}
+.slots{display:flex;gap:7px}
+.slot{flex:1;min-width:0;display:flex;align-items:center;gap:6px;border:1px dashed rgba(104,80,48,.30);border-radius:8px;padding:6px 7px;font-size:12px;color:var(--ink3);background:rgba(253,250,242,.55)}
+.slot.filled{border-style:solid;color:var(--ink)}
+.slot.me{border-color:rgba(176,74,60,.55);background:rgba(176,74,60,.06)}
+.slot .dot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(96,72,42,.25)}
+.slot .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.startrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.startrow .btn{flex:none}
 .drawrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--red2)}
-.side.on{background:var(--tile);border-color:var(--tile);color:var(--paper3)}
+.side.on{background:linear-gradient(180deg,#4C594F,#37433B);border-color:#2E3932;color:#F7F2E5}
 .side.lock{opacity:.45;cursor:not-allowed}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
-.roster{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink2)}
-.roster .rrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.roster .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(46,52,61,.25)}
-.roster .who{color:var(--ink)}
-.roster .me{font-weight:700}
+/* —— 队内推演盘 —— */
+.simbar{border:1px solid var(--card-border);border-radius:12px;background-color:var(--card-bg);box-shadow:var(--card-shadow);padding:10px 12px;display:flex;flex-direction:column;gap:7px}
+.simrow{display:flex;gap:7px}
+.simrow .btn{flex:1}
+.sim-toggle.on{background:linear-gradient(180deg,#B45B4C,#943E2B);border-color:#7E3125;color:#FFF6EE}
+.simtray{display:flex;flex-wrap:wrap;gap:5px 7px;min-height:2px}
+.simtray .smini{width:25px;height:25px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-family:'Kaiti SC',serif;border:1px dashed rgba(104,80,48,.5);color:var(--ink2);opacity:.78}
+#gSim .spc{cursor:pointer}
+/* 推演期间：真实棋子整层隐藏（推演盘是完整副本），避免一枚子画两层 */
+.board.sim-active #gPieces{visibility:hidden}
+.board.sim-active #gMarks{visibility:hidden}
+#gSim:not(.on) .spc,#gSim:not(.on) .smk{pointer-events:none}
+#gSim .sdisc{fill:#FBF6EA;stroke:#B06A3C;stroke-width:1.6;stroke-dasharray:5 4;filter:url(#pcShadow)}
+#gSim .spc.red .sdisc{stroke:rgba(176,74,60,.85)}
+#gSim .spc.black .sdisc{stroke:rgba(59,53,43,.8)}
+#gSim .spc.sel .sdisc{stroke:#92352B;stroke-width:3;stroke-dasharray:none}
+#gSim .sglyph{font-family:'Kaiti SC','STKaiti','KaiTi',serif;font-size:38px;text-anchor:middle;dominant-baseline:central;opacity:.88}
+#gSim .spc.red .sglyph{fill:var(--red2)}
+#gSim .spc.black .sglyph{fill:var(--ink)}
+#gSim .spc.sh .sdisc{fill:url(#gCeladon);stroke:rgba(247,242,230,.3);stroke-dasharray:none}
+#gSim .spc.sh .shring{fill:none;stroke:rgba(247,242,230,.26);stroke-width:1.1}
+#gSim .shglyph{font-family:'Kaiti SC','STKaiti','KaiTi',serif;font-size:19px;text-anchor:middle;dominant-baseline:central;fill:rgba(247,242,230,.66)}
+#gSim .smk{fill:rgba(176,106,60,.55);cursor:pointer}
+#gSim .smk:hover{fill:#B06A3C}
 .proprow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink);flex-wrap:wrap}
 .proprow[hidden]{display:none}
 .phrases{display:flex;flex-wrap:wrap;gap:6px}
-.phrases .ph{appearance:none;border:1px solid var(--line2);background-color:rgba(248,244,234,.92);color:var(--ink);font:inherit;font-size:12px;padding:5px 11px;border-radius:999px;cursor:pointer;transition:.15s}
-.phrases .ph:hover{border-color:var(--ink2);background:var(--paper3)}
+.phrases .ph{appearance:none;border:1px solid rgba(104,80,48,.28);background:linear-gradient(180deg,#FDF9F0,#F0E8D5);color:var(--ink);font:inherit;font-size:12px;padding:5px 11px;border-radius:999px;cursor:pointer;transition:.15s}
+.phrases .ph:hover{border-color:rgba(104,80,48,.5)}
 .phrases .ph.on{background:var(--red);border-color:var(--red);color:#FFF8F2}
 .note{pointer-events:none}
 #gNotes .note{transform-box:fill-box;transform-origin:center;
@@ -144,11 +191,9 @@ h1 .en{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color
   #gNotes .note{animation:noteIn .01s linear both, noteOut .01s linear 8s forwards}
 }
 /* —— 标点交流（棋盘下方独立模块）—— */
-.markbar{width:var(--bdw);margin:12px auto 0;padding:10px 13px;border:1px solid var(--line);border-radius:10px;
-  background-color:rgba(240,235,222,.9);
-  background-image:repeating-linear-gradient(0deg,rgba(46,52,61,.035) 0 1px,transparent 1px 4px);
-  box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);
-  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+.markbar{width:var(--bdw);margin:12px auto 0;padding:11px 14px;border:1px solid var(--card-border);border-radius:12px;
+  background-color:var(--card-bg);
+  box-shadow:var(--card-shadow);
   display:flex;flex-direction:column;gap:7px}
 .mk-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .mk-title{font-size:13px;color:var(--ink);font-weight:700;letter-spacing:.04em}
@@ -159,19 +204,19 @@ h1 .en{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color
 .mk-state.on{color:var(--red2);font-weight:700}
 .mk-toggle.on{background:var(--red);border-color:var(--red);color:#FFF8F2;font-weight:700}
 .mk-tip{font-size:11px;color:var(--ink3)}
-.markbar.on{border-color:rgba(176,74,60,.45);box-shadow:0 0 0 1px rgba(176,74,60,.16),0 10px 22px -20px rgba(24,30,38,.8)}
+.markbar.on{border-color:rgba(176,74,60,.45);box-shadow:0 0 0 1px rgba(176,74,60,.15),var(--card-shadow)}
 .board.mark{cursor:crosshair}
-.board-frame.marking{box-shadow:0 0 0 2px rgba(176,74,60,.35),0 16px 34px -26px rgba(24,30,38,.9)}
-.tray-block{border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.board-frame.marking{box-shadow:0 0 0 2px rgba(176,74,60,.35),0 26px 52px -30px rgba(60,42,18,.55)}
+.tray-block{border:1px solid var(--card-border);border-radius:12px;background-color:var(--card-bg);box-shadow:var(--card-shadow);padding:13px 15px;display:flex;flex-direction:column;gap:6px}
 .tray-title{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:8px}
 .tray-title .chip{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 .tray-title .chip.red{background:var(--red)}
 .tray-title .chip.black{background:var(--tile)}
 .tray-title b{color:var(--ink);font-weight:600}
-.tray{display:flex;flex-wrap:wrap;gap:5px 9px;min-height:32px}
+.tray{display:flex;flex-wrap:wrap;gap:5px 9px;min-height:26px}
 .mini{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-family:'Kaiti SC','STKaiti','KaiTi',serif;border:1.5px solid;flex:none}
 .mini.red{color:var(--red2);border-color:rgba(176,74,60,.55);background:var(--paper3)}
-.mini.black{color:var(--ink);border-color:rgba(46,52,61,.45);background:var(--paper3)}
+.mini.black{color:var(--ink);border-color:rgba(59,53,43,.5);background:var(--paper3)}
 .mg{display:inline-flex;align-items:center;gap:3px}
 .mg .cnt{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color:var(--ink2);font-weight:400}
 .mg.landing{opacity:0}
@@ -184,13 +229,13 @@ h1 .en{font-family:'DotGothic16','JetBrains Mono',monospace;font-size:11px;color
 .flyer .face{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;border:2px solid;font-family:'Kaiti SC','STKaiti','KaiTi',serif;line-height:1}
 .flyer.red .face.front{color:var(--red2);border-color:var(--red);background:var(--paper3)}
 .flyer.black .face.front{color:var(--ink);border-color:var(--ink);background:var(--paper3)}
-.flyer .face.back{transform:rotateY(180deg);background:var(--tile);border-color:#57616E}
-.flyer .face.back::after{content:'';width:68%;height:68%;border-radius:50%;border:1.5px solid rgba(240,235,222,.35)}
+.flyer .face.back{transform:rotateY(180deg);background:var(--tile);border-color:#2E3932}
+.flyer .face.back::after{content:'';width:68%;height:68%;border-radius:50%;border:1.5px solid rgba(247,242,230,.35)}
 .flyer .rot180{width:100%;height:100%;transform:rotate(180deg)}
-.log{height:150px;overflow:auto;border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:10px 12px;font-size:11.5px;line-height:1.8;color:var(--ink2)}
-.log div{border-bottom:1px dashed rgba(46,52,61,.12);padding:2px 0}
+.log{height:150px;overflow:auto;border:1px solid var(--card-border);border-radius:12px;background-color:var(--card-bg);box-shadow:var(--card-shadow);padding:11px 13px;font-size:11.5px;line-height:1.85;color:var(--ink2)}
+.log div{border-bottom:1px dashed rgba(96,72,42,.14);padding:2px 0}
 .log div:first-child{color:var(--ink)}
-details.rules{border:1px solid var(--line);border-radius:10px;background-color:rgba(240,235,222,.9);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 10px 22px -20px rgba(24,30,38,.8);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:10px 14px;font-size:12px;color:var(--ink2);line-height:1.9}
+details.rules{border:1px solid var(--card-border);border-radius:12px;background-color:var(--card-bg);box-shadow:var(--card-shadow);padding:11px 15px;font-size:12px;color:var(--ink2);line-height:1.9}
 details.rules summary{cursor:pointer;color:var(--ink);font-size:13px;outline:none}
 details.rules ul{margin:8px 0 2px;padding-left:18px}
 details.rules li{margin:4px 0}
@@ -210,8 +255,24 @@ details.rules b{color:var(--ink)}
       <div class="board-frame">
         <div class="board">
           <svg id="svg" viewBox="0 0 716 794" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="gPorcelain" cx="38%" cy="30%" r="78%">
+                <stop offset="0%" stop-color="#FEFAF2"/>
+                <stop offset="68%" stop-color="#F4ECDB"/>
+                <stop offset="100%" stop-color="#E4D9C2"/>
+              </radialGradient>
+              <radialGradient id="gCeladon" cx="38%" cy="28%" r="82%">
+                <stop offset="0%" stop-color="#5A6A5F"/>
+                <stop offset="55%" stop-color="#445249"/>
+                <stop offset="100%" stop-color="#2E3A32"/>
+              </radialGradient>
+              <filter id="pcShadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="2.5" stdDeviation="3" flood-color="#2C2113" flood-opacity=".28"/>
+              </filter>
+            </defs>
             <g id="gBoard"></g>
             <g id="gPieces"></g>
+            <g id="gSim"></g>
             <g id="gMarks"></g>
             <g id="gNotes"></g>
           </svg>
@@ -246,32 +307,48 @@ details.rules b{color:var(--ink)}
         <button class="tab" id="tabOnline">联机</button>
       </div>
       <div class="online" id="onlineBox" hidden>
-        <div class="orow" id="sideRow">
-          <span class="tag">选边</span>
-          <button class="btn sm side" id="sideBottom">下方</button>
-          <button class="btn sm side" id="sideTop">上方</button>
-          <span class="tag" id="sideHint">两边都可以多人</span>
+        <!-- 未进房：创建 / 加入 -->
+        <div id="joinPane">
+          <div class="joinrow">
+            <button class="btn primary" id="btnCreate">创建房间</button>
+            <input class="inp" id="roomInput" placeholder="6位房间码" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
+            <button class="btn" id="btnJoin">加入</button>
+          </div>
+          <div class="prefrow">
+            <span class="tag">偏好队伍</span>
+            <button class="btn sm side" id="sideBottom">下方队</button>
+            <button class="btn sm side" id="sideTop">上方队</button>
+          </div>
         </div>
-        <div class="orow" id="joinRow">
-          <button class="btn" id="btnCreate">创建房间</button>
-          <input class="inp" id="roomInput" placeholder="房间码（6 位数字）" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
-          <button class="btn" id="btnJoin">加入</button>
-        </div>
-        <div class="orow" id="roomRow" hidden>
-          <span class="roomcode">房间 <b id="roomCode">—</b></span>
-          <button class="btn sm" id="btnCopy">复制邀请链接</button>
-          <button class="btn sm" id="btnLeaveRoom">退出</button>
-        </div>
-        <div class="roster" id="roster"></div>
-        <div class="orow" id="startRow" hidden>
-          <button class="btn primary" id="btnStart">开始对局</button>
-          <span class="tag" id="startHint">两个半场都有人后，双方同意才开始</span>
+        <!-- 已进房：房间信息 + 两队座位 -->
+        <div id="roomPane" hidden>
+          <div class="roomrow">
+            <span class="roomcode">房间 <b id="roomCode">—</b></span>
+            <span class="roomtools">
+              <button class="btn sm" id="btnCopy">复制邀请</button>
+              <button class="btn sm" id="btnLeaveRoom">退出</button>
+            </span>
+          </div>
+          <div class="teams" id="teamsPanel"></div>
+          <div class="startrow" id="startRow" hidden>
+            <button class="btn primary" id="btnStart">开始对局</button>
+            <span class="tag" id="startHint">两个队伍都有人后，双方同意才开始</span>
+          </div>
         </div>
       </div>
       <div class="status" id="status">准备中…</div>
       <div class="btns">
         <button class="btn" id="btnNew">新开一局</button>
         <button class="btn" id="btnDraw">和棋</button>
+      </div>
+      <div class="simbar" id="simBar" hidden>
+        <div class="simrow">
+          <button class="btn sm sim-toggle" id="btnSim">模拟走棋</button>
+          <button class="btn sm" id="btnSimUndo">撤销</button>
+          <button class="btn sm" id="btnSimClear">清除</button>
+        </div>
+        <div class="simtray" id="simTray"></div>
+        <span class="tag" id="simHint">推演只在队内可见：可以走、可以吃，但不会真正翻棋或落子</span>
       </div>
       <div class="tray-block">
         <div class="tray-title"><span class="chip red"></span>红子被吃 <b id="cntRed">0</b></div>
@@ -283,17 +360,18 @@ details.rules b{color:var(--ink)}
       <details class="rules">
         <summary>玩法规则</summary>
         <ul>
-          <li>32 子全部打乱盖放。开局双方各翻开自己半场底线正中的一格定色，翻到什么色就执什么色（两张同色则重洗重摆）。</li>
+          <li>32 子全部打乱盖放。开局随机指定一方先手（各50%）：先手先翻开自己半场底线正中（將位）的那张牌，翻开什么色就执什么色、对方执另一色；对方随后翻开自己將位，两张都翻开后由先手先走。兩个將位翻出同色也没关系，那张同色牌归先手方，纯随机不重洗。</li>
           <li>暗子只能由它所在半场的一方操作；走完（或被吃）立即翻开，之后按真实兵种走，归色控制、可以过河。</li>
           <li>暗子的第一次走法按「它所在格原本的兵种」算：马蹩腿、炮要炮架、象塞眼、士斜一步、將帥直一步；兵/卒 <b>暗时按所在格向前一步；翻开后朝对手方向走（所属玩家的对面）</b>，攻入对方半场后可横走。</li>
-          <li>士 / 象 / 將帥 没有九宫与河界限制：在任何位置都按自己的走法走（士斜一步、象走田、將帥直一步），被运到别处也能继续走。</li>
+          <li>士 / 象 /將帥 翻开后没有九宫与河界限制：在任何位置都按自己的走法走（士斜一步、象走田、將帥直一步），被运到别处也能继续走；但士在翻开前的首手只能在本侧九宫（田字格）内移动，不能走出去。</li>
           <li>暗子可以吃任意未知子（包括己方的暗子），翻开发现是自己的算误伤，子照掉。</li>
           <li>吃对方將/帥即胜；误伤吃到自己的將/帥即负。</li>
           <li>两个將/帥都翻开后不得照面（同横线或竖线、中间无子）：明子主动走成照面不能走；暗子翻出来才发现照面，则刚翻出的一方判负。</li>
           <li>轮到自己无棋可走判负；和棋双方同意即可。</li>
           <li>联机：点「联机」建房（6 位房间码）或输码加入，把房间码/邀请链接发给对方即可；<b>两个半场都有人后，任意一方点「开始对局」，双方都同意才开局翻牌</b>；走法由服务端判定，断线可重连。</li>
           <li><b>一局结束后回到等待厅</b>：将帅被吃 / 无棋可走 / 和棋（或点「新开一局」）都会回到「选边」状态，可重新选边，<b>双方同意「开始对局」后再开新局</b>。</li>
-          <li><b>多人同房</b>：每个半场最多坐 4 人（下方 / 上方，选边入座）；纯邀请链接（只有房间码）会自动安排到人少的半场。</li>
+          <li><b>2v2 组队</b>：房间固定 4 个座位、两个阵营各 2 人；开局前在队伍面板上点「加入」即可选择和谁同队，随时可换；纯邀请链接会自动安排到有空位的阵营。</li>
+          <li><b>队内推演</b>：行棋时点「模拟走棋」进入队内推演盘——可以像正式对局一样移动、吃子来推演试招，但不会真正翻棋或落子；你的每一步推演队友实时可见，对手完全看不到。可「撤销」上一步或「清除」重来；一旦有正式落子，推演自动作废。</li>
           <li><b>同边一致才走子</b>：轮到你这一边时，同边任何人都可以先「提议」一步棋，<b>同边在线成员全部同意</b>才真正落子；单人在线时一步到位。和棋 / 新开一局属于双方事务，需两边在线成员全部同意，任一人否决即撤案。</li>
           <li><b>标点交流</b>：点「标点」选一个预设短语，再点棋盘交叉点即可给全房看（棋手与同边伙伴都能用），10 秒自动淡出；「清空」可立即抹掉。</li>
         </ul>
@@ -327,6 +405,9 @@ const BASE=Array.from({length:ROWS},()=>Array(COLS).fill(null));
 })();
 const SQUARES=[];
 for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) if(BASE[r][c]) SQUARES.push([r,c]);
+/* 各半场「將位」：定色阶段只能原地翻开这个格子的牌 */
+const GEN_SQ={bottom:[9,4],top:[0,4]};
+const isGenSquare=(r,c)=>((r===9||r===0)&&c===4);
 
 /* ===== 工具 ===== */
 const $=id=>document.getElementById(id);
@@ -352,29 +433,49 @@ function newGame(){
   resetDrawBtn();
   const sq=shuffle(SQUARES.map(s=>s.slice()));
   const mult={K:1,A:2,B:2,N:2,R:2,C:2,P:5};
-  let board=null;
-  for(let guard=0;guard<500;guard++){
-    const pieces=[];
-    for(const col of [RED,BLK])
-      for(const t of ['K','A','B','N','R','C','P'])
-        for(let i=0;i<mult[t];i++) pieces.push({color:col,type:t});
-    shuffle(pieces);
-    board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
-    sq.forEach(([r,c],i)=>{ board[r][c]={color:pieces[i].color,type:pieces[i].type,hidden:true}; });
-    if(board[9][4].color!==board[0][4].color) break;   // 定色两张必须一红一黑，否则重洗
-  }
-  board[9][4].hidden=false;
-  board[0][4].hidden=false;
+  const pieces=[];
+  for(const col of [RED,BLK])
+    for(const t of ['K','A','B','N','R','C','P'])
+      for(let i=0;i<mult[t];i++) pieces.push({color:col,type:t});
+  shuffle(pieces);
+  const board=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+  sq.forEach(([r,c],i)=>{ board[r][c]={color:pieces[i].color,type:pieces[i].type,hidden:true}; });
+  const firstSide=Math.random()<0.5?'bottom':'top';
   S={
-    board, turn:RED, over:false, resultText:'',
+    board, turn:null, phase:'opening', openingFirst:firstSide, over:false, resultText:'',
     sel:null, moves:[], log:[], taken:[], pending:null, landed:null,
-    bottomColor:board[9][4].color, topColor:board[0][4].color
+    bottomColor:null, topColor:null
   };
-  addLog(`定色：下方执${colorName(S.bottomColor)} · 上方执${colorName(S.topColor)} · ${colorName(RED)}先行`);
-  addLog(`翻开將位：下方 e1 是 ${pieceName(board[9][4])}，上方 e10 是 ${pieceName(board[0][4])}`);
+  addLog(`开局：${firstSide==='bottom'?'下方':'上方'}先手，请先翻开自己將位的牌，翻开什么色就执什么色`);
   renderAll();
 }
-
+/* 定色阶段：原地翻开自己將位的那张牌（首翻锁色，二翻开局、先手先走） */
+function doFlip(r,c){
+  if(S.phase!=='opening'||!isGenSquare(r,c)) return;
+  const p=S.board[r][c];
+  if(!p||!p.hidden) return;
+  const seat=r===9?'bottom':'top';
+  const g0=S.board[9][4], g1=S.board[0][4];
+  const bothHidden=g0.hidden&&g1.hidden;
+  if(bothHidden&&seat!==S.openingFirst) return;
+  const who=r===9?'下方':'上方';
+  if(bothHidden){
+    p.hidden=false;                            // 先手首翻：锁定双方颜色
+    if(seat==='bottom'){ S.bottomColor=p.color; S.topColor=other(p.color); }
+    else { S.topColor=p.color; S.bottomColor=other(p.color); }
+    addLog(`${who}先手翻开 ${sqName(r,c)}：${pieceName(p)}，${who}执${colorName(p.color)}`);
+  }else{
+    p.hidden=false;                            // 对方二翻：物理同色归先手
+    const ownerSeat=S.bottomColor===p.color?'bottom':'top';
+    addLog(`${who}翻开 ${sqName(r,c)}：${pieceName(p)}`+(ownerSeat===seat?'':`（与先手同色，归${ownerSeat==='bottom'?'下方':'上方'}）`));
+    S.phase='play';
+    S.turn=S[S.openingFirst==='bottom'?'bottomColor':'topColor'];
+    addLog(`定色：下方执${colorName(S.bottomColor)} · 上方执${colorName(S.topColor)} · 先手${S.openingFirst==='bottom'?'（下方）':'（上方）'}先走`);
+    if(!hasAnyMove()) finish({type:'nomove',loser:S.turn});
+  }
+  S.landed={r,c};
+  renderAll();
+}
 /* ===== 走法生成 ===== */
 const KDIR=[[-1,0],[1,0],[0,-1],[0,1]];
 const ADIR=[[-1,-1],[-1,1],[1,-1],[1,1]];
@@ -394,8 +495,11 @@ function pseudoMoves(board,r,c){
   };
   if(type==='K'){                       // 將/帥：一步直，无九宫限制（在任意位置都按此走法）
     for(const[dr,dc]of KDIR) add(r+dr,c+dc);
-  }else if(type==='A'){                 // 士：一步斜，无九宫限制
-    for(const[dr,dc]of ADIR) add(r+dr,c+dc);
+  }else if(type==='A'){                 // 士：暗时首手不出本侧九宫；翻开后斜一步、无九宫限制
+    if(p.hidden){
+      const rmin=r<5?0:7, rmax=r<5?2:9;
+      for(const[dr,dc]of ADIR){const tr=r+dr,tc=c+dc; if(tr>=rmin&&tr<=rmax&&tc>=3&&tc<=5) add(tr,tc);}
+    }else for(const[dr,dc]of ADIR) add(r+dr,c+dc);
   }else if(type==='B'){                 // 象：走田（塞象眼），无河界限制
     for(const[dr,dc]of ADIR){const tr=r+2*dr,tc=c+2*dc; if(!inB(tr,tc)||board[r+dr][c+dc]) continue; add(tr,tc);}
   }else if(type==='N'){
@@ -450,6 +554,15 @@ const slotOfColor=col=>col===S.bottomColor?'bottom':'top';
 function operableAt(r,c){
   const p=S.board[r][c];
   if(!p||S.over) return false;
+  if(S.phase==='opening'){
+    if(!isGenSquare(r,c)||!p.hidden) return false;
+    const bothHidden=S.board[9][4].hidden&&S.board[0][4].hidden;
+    if(bothHidden){
+      const seat=r===9?'bottom':'top';
+      return seat===S.openingFirst;
+    }
+    return true;
+  }
   if(p.hidden) return halfOf(r)===slotOfColor(S.turn);
   return p.color===S.turn;
 }
@@ -1198,7 +1311,15 @@ function drawBoard(){
 
 function isMine(r,c){                       // 联机时只看自己的可动光晕
   const p=S.board[r][c];
-  if(!p||!S.bottomColor) return false;
+  if(!p) return false;
+  if(S.phase==='opening'){
+    const gr=NET.side==='bottom'?9:0;
+    if(!(r===gr&&c===4)) return false;
+    const bothHidden=S.board[9][4].hidden&&S.board[0][4].hidden;
+    if(bothHidden) return S.openingFirst===NET.side;
+    return true;
+  }
+  if(!S.bottomColor) return false;
   if(p.hidden) return halfOf(r)===NET.side;
   return p.color===S.seatColor;
 }
@@ -1222,7 +1343,7 @@ function renderPieces(){
     if(p.hidden){
       const b=BASE[r][c];
       s+=`<circle class="hring" cx="${x}" cy="${y}" r="${RAD-7}"/>`;
-      s+=`<text class="poschar" x="${x}" y="${y+RAD-9}"${rot}>${NAMES[b.color][b.type]}</text>`;
+      s+=`<text class="poschar" x="${x}" y="${y}"${rot}>${NAMES[b.color][b.type]}</text>`;
     }else{
       s+=`<text class="glyph" x="${x}" y="${y}"${rot}>${NAMES[p.color][p.type]}</text>`;
     }
@@ -1273,6 +1394,15 @@ function renderInfo(){
     const sideInfo=c?`下方 ${c.bottom.online} 人 · 上方 ${c.top.online} 人`:'';
     if(!NET.ws||NET.ws.readyState!==1) msg='联机：未连接';
     else if(S.over) msg=S.resultText;
+    else if(S.phase==='opening'){
+      const gq=GEN_SQ[NET.side]||[9,4];
+      const mineP=S.board[gq[0]][gq[1]];
+      const mineFlipped=!!(mineP&&!mineP.hidden);
+      const bothHidden=S.board[9][4].hidden&&S.board[0][4].hidden;
+      const myTurn=bothHidden?(S.openingFirst===NET.side):!mineFlipped;
+      msg=`房间 ${NET.room} · 定色中：`+(mineFlipped?'你已翻开將位，等对方翻牌'
+        :myTurn?'请翻开你这一边將位的牌（你先手）':'对方先手翻牌，请等待');
+    }
     else if(!S.bottomColor){
       const cb=NET.counts?NET.counts.bottom.total:0, ct=NET.counts?NET.counts.top.total:0;
       const tip=cb&&ct?'选边后点「开始对局」，双方都同意即开局':'等两个半场都有人（把房间码或邀请链接发给对方）';
@@ -1280,13 +1410,13 @@ function renderInfo(){
     }
     else msg=`房间 ${NET.room} · 你在${sideName(NET.side)}（执${colorName(S.seatColor)}） · ${S.turn===S.seatColor?'轮到你这边走':'等对方走'}`;
     if(sideInfo) msg+=' · '+sideInfo;
-    if(NET.proposal) msg+=' · 表决中：'+({move:'走子',draw:'和棋',reset:'回选边',rematch:'回选边',start:'开局'}[NET.proposal.kind]||'');
+    if(NET.proposal) msg+=' · 表决中：'+({move:'走子',flip:'翻牌',draw:'和棋',reset:'回选边',rematch:'回选边',start:'开局'}[NET.proposal.kind]||'');
     if(NET.markOn&&NET.phrase) msg+=' · 标点：'+NET.phrase;
     if(NET.toast) msg+=' · '+NET.toast;
     st.textContent=msg;
-    renderRoster(); renderProposal(); syncMarkUI(); syncSideUI();
+    renderTeams(); renderProposal(); syncMarkUI(); syncSideUI(); syncSimUI();
     const cb=NET.counts?NET.counts.bottom.total:0, ct=NET.counts?NET.counts.top.total:0;
-    const lobby=(MODE==='online'&&!!NET.room&&!S.bottomColor);
+    const lobby=(MODE==='online'&&!!NET.room&&S.phase==='lobby');
     $('startRow').hidden=!lobby;
     if(lobby){
       $('btnStart').disabled=!(cb&&ct)||!!NET.proposal;
@@ -1295,6 +1425,11 @@ function renderInfo(){
         : `还要等${cb?'上方':'下方'}来人`;
     }
   }else if(S.over){ st.textContent=S.resultText; }
+  else if(S.phase==='opening'){
+    const bF=!S.board[9][4].hidden, tF=!S.board[0][4].hidden;
+    if(!bF&&!tF) st.textContent=`开局：${S.openingFirst==='bottom'?'下方':'上方'}先手，先翻开自己將位的牌，翻开什么色就执什么色`;
+    else st.textContent=bF?'下方已翻开將位，请上方翻开自己將位的牌':'上方已翻开將位，请下方翻开自己將位的牌';
+  }
   else{
     let msg=`轮到 ${colorName(S.turn)}（${slotOfColor(S.turn)==='bottom'?'下方':'上方'}）`;
     if(S.sel){
@@ -1323,19 +1458,32 @@ function renderInfo(){
   $('btnAgain').textContent=(MODE==='online'&&S.showResult)?'知道了':'再来一局';
 }
 
-function renderAll(){ renderPieces(); renderMarks(); renderInfo(); }
+function renderAll(){ renderPieces(); renderSim(); renderMarks(); renderInfo(); }
 
 /* ===== 多人：名单 / 表决 / 标点 ===== */
-function renderRoster(){
-  const el=$('roster');
-  if(MODE!=='online'||!NET.members.length){ el.innerHTML=''; return; }
-  const row=(side,label)=>{
-    const ms=NET.members.filter(m=>m.side===side);
-    const body=ms.map(m=>`<span class="dot" style="background:${esc(m.color)}"></span>`+
-      `<span class="who${m.id===NET.id?' me':''}">${m.id===NET.id?'你':('#'+esc(m.label))}${m.online?'':' ·离线'}</span>`).join('');
-    return `<div class="rrow"><span class="tag" style="flex:none">${label}</span>${body||'<span class="who">等加入…</span>'}</div>`;
+function renderTeams(){
+  const el=$('teamsPanel');
+  if(MODE!=='online'||!NET.room){ el.innerHTML=''; return; }
+  const canSwitch=(S&&S.phase==='lobby');
+  const card=side=>{
+    const ms=NET.members.filter(m=>m.side===side).sort((a,b)=>a.id-b.id);
+    const mine=NET.side===side;
+    let slots='';
+    for(let i=0;i<2;i++){
+      const m=ms[i];
+      if(m) slots+=`<span class="slot filled${m.id===NET.id?' me':''}"${m.online?'':' style="opacity:.45"'}>`+
+        `<span class="dot" style="background:${esc(m.color)}"></span>`+
+        `<span class="who">${m.id===NET.id?'你':('#'+esc(m.label))}${m.online?'':' ·离线'}</span></span>`;
+      else slots+='<span class="slot">空位</span>';
+    }
+    const tname=side==='bottom'?'下方阵营':'上方阵营';
+    const join=(canSwitch&&!mine)?`<button class="btn sm join" data-join="${side}">加入</button>`:'';
+    const onlineN=ms.filter(m=>m.online).length;
+    return `<div class="team${mine?' mine':''}"><div class="team-head">`+
+      `<span class="tname">${tname}</span><span class="tag">${onlineN}/2 在线</span>${join}</div>`+
+      `<div class="slots">${slots}</div></div>`;
   };
-  el.innerHTML=row('bottom','下方')+row('top','上方');
+  el.innerHTML=card('bottom')+card('top');
 }
 function memberColor(id){
   const m=NET.members.find(x=>x.id===id);
@@ -1349,10 +1497,10 @@ function renderProposal(){
   if(bd) bd.classList.toggle('prop',!!p);
   document.querySelectorAll('.river').forEach(e=>{ e.style.opacity=p?'0':''; });   // 立即让位，不依赖过渡
   if(!p) return;
-  const kindName={move:'走子',draw:'和棋',reset:'回选边',rematch:'回选边',start:'开局'}[p.kind]||p.kind;
+  const kindName={move:'走子',flip:'翻牌定色',draw:'和棋',reset:'回选边',rematch:'回选边',start:'开局'}[p.kind]||p.kind;
   const what='';                       // 走法已在棋盘上用箭头画出，文字里不再重复坐标
   const agree=p.agree||[], need=p.need||[];
-  const canVote=(p.kind==='move')?(NET.side===p.side):true;
+  const canVote=(p.kind==='move'||p.kind==='flip')?(NET.side===p.side):true;
   const voted=agree.includes(NET.id);
   $('bpDot').style.background=memberColor(p.by);
   $('bpText').textContent=`${memberName(p.by)} ${kindName}${what} · ${agree.length}/${agree.length+need.length}`+
@@ -1460,20 +1608,166 @@ const WSURL=()=>((location.protocol==='https:'?'wss://':'ws://')+location.host+'
 const API=p=>'/darkchess/api'+p;
 function netSend(o){ if(NET.ws&&NET.ws.readyState===1){ try{ NET.ws.send(JSON.stringify(o)); }catch(e){} } }
 function netToast(m){ NET.toast=m; clearTimeout(NET.toastTimer); NET.toastTimer=setTimeout(()=>{ NET.toast=''; renderInfo(); },4000); renderInfo(); }
+/* ===== 队内推演盘（模拟走棋：可走可吃、不翻棋不落子，仅同队可见） ===== */
+let SIM=null;
+const cloneBoard=board=>board.map(row=>row.map(p=>p?{color:p.color,type:p.type,hidden:p.hidden,mtype:p.mtype,mcolor:p.mcolor}:null));
+const wireCell=p=>p?(p.hidden?{h:1,m:p.mtype,c:p.mcolor}:{c:p.color,t:p.type}):null;
+const parseCell=c=>!c?null:(c.h?{hidden:true,mtype:c.m,mcolor:c.c}:{hidden:false,color:c.c,type:c.t});
+
+function simPseudo(board,r,c){
+  const p=board[r][c];
+  if(!p) return [];
+  const type=p.hidden?(p.mtype||BASE[r][c].type):p.type;
+  const out=[];
+  const add=(tr,tc)=>{ if(inB(tr,tc)) out.push([tr,tc]); };   // 推演完全自由：任何落点都允许（含己方）
+  if(type==='K'){ for(const[dr,dc]of KDIR) add(r+dr,c+dc); }
+  else if(type==='A'){ for(const[dr,dc]of ADIR) add(r+dr,c+dc); }
+  else if(type==='B'){ for(const[dr,dc]of ADIR){const tr=r+2*dr,tc=c+2*dc; if(inB(tr,tc)&&!board[r+dr][c+dc]) add(tr,tc);} }
+  else if(type==='N'){ for(const[dr,dc,lr,lc]of NDIR){const tr=r+dr,tc=c+dc; if(inB(tr,tc)&&!board[r+lr][c+lc]) add(tr,tc);} }
+  else if(type==='R'){ for(const[dr,dc]of KDIR){let tr=r+dr,tc=c+dc; while(inB(tr,tc)){ add(tr,tc); if(board[tr][tc]) break; tr+=dr;tc+=dc; }} }
+  else if(type==='C'){ for(const[dr,dc]of KDIR){let tr=r+dr,tc=c+dc,screen=false; while(inB(tr,tc)){ if(board[tr][tc]){ if(screen){add(tr,tc);break;} screen=true; } else if(!screen) add(tr,tc); tr+=dr;tc+=dc; }} }
+  else if(type==='P'){
+    let north;
+    if(p.hidden){ const bp=BASE[r][c]; north=bp?bp.color===RED:r<5; }
+    else north=p.color===S.bottomColor;
+    const f=north?-1:1;
+    add(r+f,c);
+    const crossed=north?r<=4:r>=5;
+    if(crossed){ add(r,c-1); add(r,c+1); }
+  }
+  return out;
+}
+function simOperable(r,c){
+  const p=SIM.board[r][c];
+  if(!p) return false;
+  return true;        // 推演时双方所有棋子都能操控：我走→对手应→我再走
+}
+function startSim(){
+  if(!S.bottomColor||S.phase!=='play') return;
+  SIM={by:NET.id,mine:true,board:cloneBoard(S.board),taken:[],hist:[],sel:null,moves:[]};
+  renderAll();
+}
+function exitSim(){
+  if(SIM){ netSend({t:'sim:clear'}); }
+  clearSim();
+}
+function clearSim(){
+  SIM=null;
+  const g=$('gSim'); g.innerHTML=''; g.classList.remove('on');
+  syncSimUI();
+}
+function simResetBoard(){
+  if(!SIM||!SIM.mine) return;
+  SIM.board=cloneBoard(S.board); SIM.taken=[]; SIM.hist=[]; SIM.sel=null; SIM.moves=[];
+  broadcastSim();
+  renderAll();
+}
+function simUndo(){
+  if(!SIM||!SIM.mine||!SIM.hist.length) return;
+  const h=SIM.hist.pop();
+  SIM.board[h.fr][h.fc]=SIM.board[h.tr][h.tc];
+  SIM.board[h.tr][h.tc]=h.t;
+  if(h.t) SIM.taken.pop();
+  SIM.sel=null; SIM.moves=[];
+  broadcastSim();
+  renderAll();
+}
+function simSelect(r,c){
+  if(!simOperable(r,c)){ SIM.sel=null;SIM.moves=[];renderAll(); return; }
+  SIM.sel={r,c};
+  SIM.moves=simPseudo(SIM.board,r,c);
+  renderAll();
+}
+function simDoMove(tr,tc){
+  if(!SIM.sel) return;
+  const fr=SIM.sel.r, fc=SIM.sel.c;
+  if(!SIM.moves.some(m=>m[0]===tr&&m[1]===tc)) return;
+  const p=SIM.board[fr][fc], t=SIM.board[tr][tc];
+  if(p.hidden&&BASE[fr][fc]){ p.mtype=BASE[fr][fc].type; p.mcolor=BASE[fr][fc].color; }
+  SIM.board[tr][tc]=p; SIM.board[fr][fc]=null;
+  if(t) SIM.taken.push(t);
+  SIM.hist.push({fr,fc,tr,tc,t});
+  SIM.sel=null; SIM.moves=[];
+  broadcastSim();
+  renderAll();
+}
+function broadcastSim(){
+  netSend({t:'sim',
+    board:SIM.board.map(row=>row.map(wireCell)),
+    taken:SIM.taken.map(wireCell)});
+}
+function applyRemoteSim(m){
+  if(m.by===NET.id) return;                 // 自己的消息回环：忽略
+  if(SIM&&SIM.mine) return;
+  SIM={by:m.by,mine:false,
+       board:m.board.map(row=>row.map(parseCell)),
+       taken:(m.taken||[]).map(parseCell),
+       hist:[],sel:null,moves:[]};
+  renderAll();
+}
+function clearRemoteSim(by){
+  if(SIM&&!SIM.mine&&SIM.by===by) clearSim();
+}
+function renderSim(){
+  const g=$('gSim');
+  const bd=document.querySelector('.board');
+  if(!SIM){ g.innerHTML=''; g.classList.remove('on'); bd.classList.remove('sim-active'); return; }
+  bd.classList.add('sim-active');
+  g.classList.toggle('on',SIM.mine);
+  let s='';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const p=SIM.board[r][c]; if(!p) continue;
+    const x=X(c), y=Y(r);
+    const sel=SIM.sel&&SIM.sel.r===r&&SIM.sel.c===c;
+    const cls=(p.hidden?'sh':(p.color===RED?'red':'black'))+(sel?' sel':'');
+    s+=`<g class="spc ${cls}" data-r="${r}" data-c="${c}"><circle class="sdisc" cx="${x}" cy="${y}" r="${RAD}"/>`;
+    if(p.hidden){
+      const mc=p.mcolor||(BASE[r][c]?BASE[r][c].color:RED);
+      const mt=p.mtype||(BASE[r][c]?BASE[r][c].type:'');
+      s+=`<text class="shglyph" x="${x}" y="${y}">${mt?NAMES[mc][mt]:''}</text>`;
+    }
+    else s+=`<text class="sglyph" x="${x}" y="${y}">${NAMES[p.color][p.type]}</text>`;
+    s+='</g>';
+  }
+  if(SIM.mine&&SIM.sel) for(const[tr,tc]of SIM.moves)
+    s+=`<circle class="smk" data-r="${tr}" data-c="${tc}" cx="${X(tc)}" cy="${Y(tr)}" r="12"/>`;
+  g.innerHTML=s;
+}
+function syncSimUI(){
+  const inPlay=(MODE==='online'&&!!NET.room&&!!S&&S.phase==='play');
+  $('simBar').hidden=!inPlay;
+  const on=!!(SIM&&SIM.mine);
+  $('btnSim').classList.toggle('on',on);
+  $('btnSim').textContent=on?'退出模拟':'模拟走棋';
+  $('btnSimUndo').disabled=!(on&&SIM.hist.length);
+  $('btnSimClear').disabled=!on;
+  const tray=$('simTray');
+  tray.innerHTML=(SIM&&SIM.taken||[]).map(p=>{
+    const t=p.hidden?'？':NAMES[p.color][p.type];
+    const st=p.hidden?'':('color:'+(p.color===RED?'var(--red2)':'var(--ink)'));
+    return `<span class="smini" style="${st}">${t}</span>`;
+  }).join('');
+  const hint=$('simHint');
+  if(!SIM) hint.textContent='推演只在队内可见：可以走、可以吃，但不会真正翻棋或落子';
+  else if(SIM.mine) hint.textContent='你的推演中：队友实时可见，对手看不到';
+  else hint.textContent='正在看 #'+SIM.by+' 的队内推演';
+}
+
 function loadSaved(){ try{ return JSON.parse(sessionStorage.getItem('dc_room')||'null'); }catch(e){ return null; } }
 function saveSaved(room,token,side){ try{ sessionStorage.setItem('dc_room',JSON.stringify({room,token,side})); }catch(e){} }
 function clearSaved(){ try{ sessionStorage.removeItem('dc_room'); }catch(e){} }
 function showJoinUI(){
-  $('joinRow').hidden=false; $('roomRow').hidden=true; $('roomCode').textContent='—';
-  $('boardProp').hidden=true; $('roster').innerHTML=''; syncMarkUI();
+  $('joinPane').hidden=false; $('roomPane').hidden=true; $('roomCode').textContent='—';
+  $('boardProp').hidden=true; $('teamsPanel').innerHTML=''; syncMarkUI();
   NET.members=[]; NET.counts=null; NET.proposal=null; NET.last=null; NET.started=false; clearNotes();
+  clearSim();
 }
-function showRoomUI(code){ $('joinRow').hidden=true; $('roomRow').hidden=false; $('roomCode').textContent=code; }
+function showRoomUI(code){ $('joinPane').hidden=true; $('roomPane').hidden=false; $('roomCode').textContent=code; }
 
 function blankS(){                       // 联机模式在收到首帧前的空状态
-  return {board:Array.from({length:ROWS},()=>Array(COLS).fill(null)),turn:RED,over:false,resultText:'',
+  return {board:Array.from({length:ROWS},()=>Array(COLS).fill(null)),turn:null,phase:'lobby',over:false,resultText:'',
           sel:null,moves:[],log:[],taken:[],pending:null,landed:null,showResult:false,
-          bottomColor:RED,topColor:BLK,seatColor:null};
+          bottomColor:null,topColor:null,seatColor:null};
 }
 function setMode(mode){
   MODE=mode; updateFlip();
@@ -1572,6 +1866,8 @@ function handleNet(m){
   }
   else if(m.t==='mark'){ addNote(m); }
   else if(m.t==='marks:clear'){ clearNotes(); }
+  else if(m.t==='sim'){ applyRemoteSim(m); }
+  else if(m.t==='sim:clear'){ clearRemoteSim(m.by); }
   else if(m.t==='err'){ netToast(m.msg||'这步走不了'); }
 }
 function applyNetState(m){
@@ -1590,11 +1886,14 @@ function applyNetState(m){
   }
   const board=m.board.map(row=>row.map(cell=>cell? (cell.h?{hidden:true}:{hidden:false,color:cell.color,type:cell.type}) : null));
   S={
-    board, turn:m.turn, over:!!m.over, resultText:m.result||'',
-    sel:null, moves:[], log:(m.log||[]).slice().reverse(), taken:m.taken||[],
+    board, turn:m.turn, phase:(m.phase||(m.started===false?'lobby':'play')),
+    openingFirst:m.openingFirst||null,
+    over:!!m.over, resultText:m.result||'',
+    sel:null, moves:[], log:(m.log||[]).reverse(), taken:m.taken||[],
     pending:null, landed:null, showResult:false,
     bottomColor:m.bottomColor, topColor:m.topColor, seatColor:m.seatColor
   };
+  clearSim();                                     // 真实棋盘已更新：推演盘作废
   if(m.started===false){
     NET.last=m.last||null;
     if(m.last&&wasStarted){ S.showResult=true; S.resultText=m.last.text; }   // 局终：保留结果提示
@@ -1611,7 +1910,31 @@ $('svg').addEventListener('click',e=>{
     if(cell) netSend({t:'mark',r:cell[0],c:cell[1],phrase:NET.phrase});
     return;
   }
+  if(MODE==='online'&&SIM&&SIM.mine){               // 队内推演模式：吞掉所有棋盘点击
+    const sp=e.target.closest('#gSim .spc');
+    const r=sp?+sp.dataset.r:null, c=sp?+sp.dataset.c:null;
+    // 点到的棋子若正好是当前选中子的合法落点 → 吃子（即使小圆点被棋子盖住）
+    if(sp&&SIM.sel&&SIM.moves.some(m=>m[0]===r&&m[1]===c)){
+      simDoMove(r,c); return;
+    }
+    const smk=e.target.closest('#gSim .smk');
+    if(smk){ simDoMove(+smk.dataset.r,+smk.dataset.c); return; }
+    if(sp){ simSelect(r,c); return; }
+    SIM.sel=null; SIM.moves=[]; renderAll(); return;
+  }
   if(S.over) return;
+  if(S.phase==='opening'){                       // 定色阶段：只能翻己方將位
+    const g=e.target.closest('.pc');
+    if(g){
+      const r=+g.dataset.r,c=+g.dataset.c;
+      if(!isGenSquare(r,c)) return;
+      if(MODE==='online'){
+        const gr=NET.side==='bottom'?9:0;
+        if(r===gr) netSend({t:'flip'});
+      }else doFlip(r,c);
+    }
+    return;
+  }
   const mk=e.target.closest('.mk,.mkcap,.mkring');
   if(mk){
     const r=+mk.dataset.r, c=+mk.dataset.c;
@@ -1708,8 +2031,8 @@ function pickSide(s){
   try{ localStorage.setItem('dc_side',s); }catch(e){}
   const inRoom=(MODE==='online'&&!!NET.room&&NET.ws&&NET.ws.readyState===1);
   if(inRoom){
-    const started=!!(S&&S.bottomColor);
-    if(started){ netToast('已开局，换边请先退出房间'); syncSideUI(); return; }
+    const started=!!(S&&S.phase!=='lobby');
+    if(started){ netToast('已开局，换队请先退出房间'); syncSideUI(); return; }
     if(NET.side===s){ netToast('你已经在'+sideName(s)+'了'); syncSideUI(); return; }
     netSend({t:'side',side:s});
   }
@@ -1717,7 +2040,14 @@ function pickSide(s){
 }
 $('sideBottom').addEventListener('click',()=>pickSide('bottom'));
 $('sideTop').addEventListener('click',()=>pickSide('top'));
+$('teamsPanel').addEventListener('click',e=>{
+  const b=e.target.closest('[data-join]'); if(!b) return;
+  pickSide(b.dataset.join);
+});
 $('btnMark').addEventListener('click',()=>{ NET.markOn=!NET.markOn; if(NET.markOn&&!NET.phrase) setPhrase(PHRASES[0]); syncMarkUI(); renderInfo(); });
+$('btnSim').addEventListener('click',()=>{ if(SIM&&SIM.mine) exitSim(); else startSim(); });
+$('btnSimUndo').addEventListener('click',simUndo);
+$('btnSimClear').addEventListener('click',simResetBoard);
 $('btnMarkClear').addEventListener('click',()=>{ if(MODE==='online') netSend({t:'marks:clear'}); clearNotes(); });
 $('phrases').addEventListener('click',e=>{
   const b=e.target.closest('.ph'); if(!b) return;
@@ -1728,15 +2058,12 @@ $('phrases').addEventListener('click',e=>{
 /* ===== 选边 ===== */
 function syncSideUI(){
   const inRoom=(MODE==='online'&&!!NET.room);
-  const started=!!(inRoom&&S&&S.bottomColor);
+  const started=!!(inRoom&&S&&S.phase!=='lobby');
   const cur=inRoom?(NET.side||NET.pickSide):NET.pickSide;
   $('sideBottom').classList.toggle('on',cur==='bottom');
   $('sideTop').classList.toggle('on',cur==='top');
   $('sideBottom').classList.toggle('lock',started);
   $('sideTop').classList.toggle('lock',started);
-  $('sideHint').textContent=!inRoom
-    ? '选好后建房/加入；开局前都能换'
-    : (started?'已开局 · 不能换边':('你在'+sideName(NET.side)+' · 开局前可换边'));
 }
 $('phrases').innerHTML=PHRASES.map(p=>`<button class="ph" data-p="${p}">${p}</button>`).join('');
 try{ NET.pickSide=localStorage.getItem('dc_side')||'bottom'; }catch(e){ NET.pickSide='bottom'; }

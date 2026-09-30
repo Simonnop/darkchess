@@ -1,10 +1,14 @@
 """暗棋（Dark Chess）规则实现 —— 服务端权威版本。
 
 与前端 web/dark_chess.html 的单机规则保持一致：
-- 32 子混洗盖放，随机铺满 32 个标准开局点；开局翻开双方将位的牌定色（同色重洗）
+- 32 子混洗盖放，随机铺满 32 个标准开局点（纯随机，兩个將位物理同色也不重洗）
+- 开局随机指定一方先手（各 50%）：先手原地翻开自己將位即锁定双方颜色——翻开什么色
+  执什么色，对方执另一色；对方随后翻开自己將位，之后先手先走
 - 暗子只能由所在半场的一方操作；首手按「所在格原本的兵种」走，走完/被吃强制翻开
 - 兵/卒 朝「所属玩家」的对面走（下方玩家向北、上方玩家向南），进入对方半场后可横走
 - 暗子可盲吃任意未知子（含己方，误伤自担）；吃对方將/帥即胜，误伤吃到己方將/帥即负
+- 暗士（士位上未翻开的子）首手不得走出本侧九宫（田字格）；翻开后无九宫限制
+- 对方將位翻出与先手同色的牌，该牌归先手方（按物理颜色归属）
 - 两个將/帥都翻开后不得照面：明子主动走成照面为禁手；暗子翻出才发现照面则翻出方判负
 - 无棋可走判负；和棋双方同意
 """
@@ -39,6 +43,8 @@ def _build_base():
 
 BASE = _build_base()
 SQUARES = [(r, c) for r in range(ROWS) for c in range(COLS) if BASE[r][c]]
+# 各半场「將位」：定色阶段只能原地翻开这个格子的牌
+GEN_SQ = {"bottom": (9, 4), "top": (0, 4)}
 
 
 def other(col):
@@ -64,38 +70,40 @@ def half_of(seat):
 
 # ---------------------------------------------------------------- 开局
 
-def new_state(rng=None):
+def new_state(rng=None, first_side=None):
+    """开局：纯随机发牌（两个將位可能物理同色，不重洗）。
+
+    先手由 first_side 指定（bottom/top）；不传则随机掷出（公平，各 50%）。
+    先手翻开自己將位即锁定双方颜色，对方随后翻开自己將位，之后先手先走。
+    """
     rng = rng or random
     squares = SQUARES[:]
     rng.shuffle(squares)
-    while True:
-        pool = []
-        for col in (RED, BLK):
-            for t in ("K", "A", "B", "N", "R", "C", "P"):
-                pool.extend([(col, t)] * MULT[t])
-        rng.shuffle(pool)
-        board = [[None] * COLS for _ in range(ROWS)]
-        for (r, c), (col, t) in zip(squares, pool):
-            board[r][c] = {"color": col, "type": t, "hidden": True}
-        if board[9][4]["color"] != board[0][4]["color"]:
-            break
-    board[9][4]["hidden"] = False
-    board[0][4]["hidden"] = False
+    pool = []
+    for col in (RED, BLK):
+        for t in ("K", "A", "B", "N", "R", "C", "P"):
+            pool.extend([(col, t)] * MULT[t])
+    rng.shuffle(pool)
+    board = [[None] * COLS for _ in range(ROWS)]
+    for (r, c), (col, t) in zip(squares, pool):
+        board[r][c] = {"color": col, "type": t, "hidden": True}
+    if first_side not in ("bottom", "top"):
+        first_side = "bottom" if rng.random() < 0.5 else "top"
     st = {
         "board": board,
-        "turn": RED,
-        "bottom_color": board[9][4]["color"],
-        "top_color": board[0][4]["color"],
+        "turn": None,
+        "phase": "opening",
+        "opening_first": first_side,
+        "bottom_color": None,
+        "top_color": None,
         "over": False,
         "result": "",
         "taken": [],
         "log": [],
         "pending_draw": None,
     }
-    log(st, "定色：下方执%s · 上方执%s · %s先行" % (
-        color_name(st["bottom_color"]), color_name(st["top_color"]), color_name(RED)))
-    log(st, "翻开將位：下方 e1 是 %s，上方 e10 是 %s" % (
-        piece_name(board[9][4]), piece_name(board[0][4])))
+    log(st, "开局：%s先手，请先翻开自己將位的牌，翻开什么色就执什么色"
+            % ("下方" if first_side == "bottom" else "上方"))
     return st
 
 
@@ -103,6 +111,52 @@ def log(st, text):
     st["log"].append(text)
     if len(st["log"]) > 200:
         del st["log"][:100]
+
+
+def flip_general(st, seat):
+    """定色阶段：原地翻开自己半场將位的那张牌（不走动）。
+
+    先手首翻即锁定双方颜色（翻开什么色执什么色，对方执另一色）；
+    对方二翻后进入行棋，由先手先走。对方將位若物理同色，该牌归先手方。
+    返回 (ok, evt, err)。
+    """
+    if st.get("phase") != "opening":
+        return False, None, "已经定色了"
+    r, c = GEN_SQ[seat]
+    p = st["board"][r][c]
+    if not p or not p["hidden"]:
+        return False, None, "这张已经翻开了"
+    g0, g1 = st["board"][9][4], st["board"][0][4]
+    both_hidden = g0["hidden"] and g1["hidden"]
+    if both_hidden and seat != st["opening_first"]:
+        return False, None, "还没轮到你翻牌"
+    who = "下方" if seat == "bottom" else "上方"
+
+    if both_hidden:
+        # 先手首翻：锁定双方颜色
+        p["hidden"] = False
+        if seat == "bottom":
+            st["bottom_color"], st["top_color"] = p["color"], other(p["color"])
+        else:
+            st["top_color"], st["bottom_color"] = p["color"], other(p["color"])
+        log(st, "%s先手翻开 %s：%s，%s执%s" % (
+            who, sq_name(r, c), piece_name(p), who, color_name(p["color"])))
+    else:
+        # 对方二翻：颜色已锁，仅翻开；物理同色归先手
+        p["hidden"] = False
+        owner_seat = "bottom" if st["bottom_color"] == p["color"] else "top"
+        log(st, "%s翻开 %s：%s" % (who, sq_name(r, c), piece_name(p))
+            + ("" if owner_seat == seat else "（与先手同色，归%s）"
+               % ("下方" if owner_seat == "bottom" else "上方")))
+        st["phase"] = "play"
+        st["turn"] = seat_color(st, st["opening_first"])
+        log(st, "定色：下方执%s · 上方执%s · %s先走" % (
+            color_name(st["bottom_color"]), color_name(st["top_color"]),
+            "先手" + ("（下方）" if st["opening_first"] == "bottom" else "（上方）")))
+
+    evt = {"fr": r, "fc": c, "tr": r, "tc": c,
+           "cap": None, "end": None, "flip": True}
+    return True, evt, None
 
 
 # ---------------------------------------------------------------- 基本信息
@@ -147,8 +201,15 @@ def pseudo_moves(board, r, c, bottom_color):
         for dr, dc in KDIR:
             add(r + dr, c + dc)
     elif typ == "A":
-        for dr, dc in ADIR:
-            add(r + dr, c + dc)
+        if p["hidden"]:
+            rmin, rmax = (0, 2) if r < 5 else (7, 9)   # 暗士首手不得走出本侧九宫（田字格）
+            for dr, dc in ADIR:
+                tr, tc = r + dr, c + dc
+                if rmin <= tr <= rmax and 3 <= tc <= 5:
+                    add(tr, tc)
+        else:
+            for dr, dc in ADIR:
+                add(r + dr, c + dc)
     elif typ == "B":
         for dr, dc in ADIR:
             tr, tc = r + 2 * dr, c + 2 * dc
@@ -249,6 +310,17 @@ def legal_moves(board, r, c, bottom_color):
 def operable(st, seat, r, c):
     if st["over"]:
         return False
+    if st.get("phase") == "opening":
+        gr, gc = GEN_SQ[seat]                       # 定色阶段：只能翻自己將位
+        if not (r == gr and c == gc):
+            return False
+        p = st["board"][r][c]
+        if not p or not p["hidden"]:
+            return False
+        g0, g1 = st["board"][9][4], st["board"][0][4]
+        if g0["hidden"] and g1["hidden"]:           # 还没人翻：只有随机先手可以先翻
+            return seat == st["opening_first"]
+        return True
     p = st["board"][r][c]
     if not p:
         return False
@@ -277,6 +349,8 @@ def do_move(st, seat, fr, fc, tr, tc):
     """执行一步（服务端权威）。返回 (ok, event, err)"""
     if st["over"]:
         return False, None, "对局已结束"
+    if st.get("phase") == "opening":
+        return False, None, "请先翻开將位定色"
     if not operable(st, seat, fr, fc):
         return False, None, "这不是你能动的子"
     if st["turn"] != seat_color(st, seat):
@@ -350,12 +424,39 @@ def preset_view():
         for c in range(COLS):
             row.append({"h": 1} if BASE[r][c] else None)
         board.append(row)
-    return {"board": board, "turn": None, "bottomColor": None, "topColor": None,
+    return {"board": board, "turn": None, "phase": "lobby",
+            "bottomColor": None, "topColor": None,
             "over": False, "result": "", "taken": [], "log": [], "draw": "none"}
 
 
 def view(st, seat):
     """给客户端的可见信息：暗子只给 h 标记，不含真实身份"""
+    if st.get("phase") == "opening":
+        board = []
+        for row in st["board"]:
+            out = []
+            for p in row:
+                if not p:
+                    out.append(None)
+                elif p["hidden"]:
+                    out.append({"h": 1})
+                else:
+                    out.append({"hidden": False, "color": p["color"], "type": p["type"]})
+            board.append(out)
+        return {
+            "board": board,
+            "turn": None,
+            "phase": "opening",
+            "openingFirst": st["opening_first"],
+            "bottomColor": st["bottom_color"],
+            "topColor": st["top_color"],
+            "seatColor": None,
+            "over": False,
+            "result": "",
+            "taken": [],
+            "log": st["log"][-40:],
+            "draw": "none",
+        }
     board = []
     for row in st["board"]:
         out = []
@@ -370,6 +471,7 @@ def view(st, seat):
     return {
         "board": board,
         "turn": st["turn"],
+        "phase": "play",
         "bottomColor": st["bottom_color"],
         "topColor": st["top_color"],
         "seatColor": seat_color(st, seat),
